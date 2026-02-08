@@ -1,0 +1,84 @@
+services:
+
+#  app: # бизнес логика
+#    build: .
+#    depends_on:
+#      pg:
+#        condition: service_healthy
+#      nats:
+#        condition: service_healthy
+#      s3:
+#        condition: service_healthy
+
+  pg: # хранит пользователей, проекты, историю сборок и метаданные
+    image: postgres:14-alpine
+    container_name: postgresql
+    env_file:
+      - config/.env.pg
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck: # для depends_on service_healthy
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nats: # гарантированная доставка событий и данных
+    image: nats:2.10-alpine
+    container_name: nats-jetstream
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/var/lib/nats-js/data
+    command: "-js -sd /var/lib/nats-js/data -m 8222 --name nats-1" # команда для указания волюма и запуска в режиме jetstream
+    networks:
+      - backend
+    healthcheck: # для depends_on service_healthy
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8222 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nats-box: # nats cli для управления стримами из консоли
+    image: natsio/nats-box:0.19.2
+    container_name: nats-cli
+    env_file:
+      - config/.env.nats
+    depends_on:
+      nats:
+        condition: service_healthy
+    command: sleep infinity # loop чтобы контейнер не падал, и мы могли зайти внутрь
+    networks:
+      - backend
+
+  s3: # хранение артефактов
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000" # для доступа к хранилищу
+      - "9001:9001" # для доступа к админке
+    env_file:
+      - config/.env.minio
+    volumes:
+      - minio-data:/var/lib/minio/data
+    command: 'server /var/lib/minio/data --console-address ":9001"' # задаем путь волюма и порт для админки
+    networks:
+      - backend
+    healthcheck: # для depends_on service_healthy
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  backend:
+
+volumes:
+  nats-data:
+  postgres_data:
+  minio-data:
