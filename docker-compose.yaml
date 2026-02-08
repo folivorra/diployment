@@ -34,7 +34,7 @@ services:
       - "4222:4222"
       - "8222:8222"
     volumes:
-      - nats-data:/var/lib/nats-js/data
+      - nats_data:/var/lib/nats-js/data
     command: "-js -sd /var/lib/nats-js/data -m 8222 --name nats-1" # команда для указания волюма и запуска в режиме jetstream
     networks:
       - backend
@@ -65,7 +65,7 @@ services:
     env_file:
       - config/.env.minio
     volumes:
-      - minio-data:/var/lib/minio/data
+      - minio_data:/var/lib/minio/data
     command: 'server /var/lib/minio/data --console-address ":9001"' # задаем путь волюма и порт для админки
     networks:
       - backend
@@ -79,6 +79,6 @@ networks:
   backend:
 
 volumes:
-  nats-data:
+  nats_data:
   postgres_data:
-  minio-data:
+  minio_data:
