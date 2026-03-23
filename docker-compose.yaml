@@ -16,7 +16,7 @@ services:
     env_file:
       - config/.env.pg
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -31,8 +31,8 @@ services:
     image: nats:2.10-alpine
     container_name: nats-jetstream
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "127.0.0.1:4222:4222"
+      - "127.0.0.1:8222:8222"
     volumes:
       - nats_data:/var/lib/nats-js/data
     command: "-js -sd /var/lib/nats-js/data -m 8222 --name nats-1" # команда для указания волюма и запуска в режиме jetstream
@@ -60,8 +60,8 @@ services:
     image: minio/minio:latest
     container_name: minio
     ports:
-      - "9000:9000" # для доступа к хранилищу
-      - "9001:9001" # для доступа к админке
+      - "127.0.0.1:9000:9000" # для доступа к хранилищу
+      - "127.0.0.1:9001:9001" # для доступа к админке
     env_file:
       - config/.env.minio
     volumes:
