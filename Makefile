@@ -16,3 +16,6 @@ cluster_down:
 
 migrate_up:
 	goose up
+
+migrate_down:
+	goose down

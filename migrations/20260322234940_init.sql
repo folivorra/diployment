@@ -9,6 +9,8 @@ CREATE TABLE users (
     github_id BIGINT UNIQUE NOT NULL,
     -- ссылка на аватар пользователя из github, красиво для UI
     avatar_url TEXT,
+    -- зашифрованный access_token от GitHub
+    github_token BYTEA,
     -- дата создания записи
     created_at TIMESTAMP DEFAULT NOW()
 );
@@ -33,8 +35,8 @@ CREATE TABLE projects (
 -- +goose Down
 -- +goose StatementBegin
 
-DROP TABLE IF EXISTS users;
-
 DROP TABLE IF EXISTS projects;
+
+DROP TABLE IF EXISTS users;
 
 -- +goose StatementEnd

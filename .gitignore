@@ -24,11 +24,11 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# Env file
 config/.env.minio
 config/.env.nats
 config/.env.pg
+config/.env.core
 
 # Editor/IDE
 .idea/
-# .vscode/
