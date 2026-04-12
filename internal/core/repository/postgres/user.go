@@ -23,6 +23,9 @@ func NewUserPostgresRepo(pool *pgxpool.Pool) *userPostgresRepo {
 	}
 }
 
+// Upsert создает запись о пользователе.
+//
+// Если запись о пользователе с таким же github_id уже существует - обновляет информацию.
 func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) error {
 	query := `
 		INSERT INTO users (github_id, avatar_url, github_token) 
@@ -48,6 +51,7 @@ func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) error {
 	return nil
 }
 
+// GetByID возвращает запись о пользователе по его идентификатору.
 func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	query := `
 		SELECT id, github_id, avatar_url, github_token, created_at 

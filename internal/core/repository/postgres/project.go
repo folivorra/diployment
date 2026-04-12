@@ -25,6 +25,7 @@ func NewProjectPostgresRepo(pool *pgxpool.Pool) *projectPostgresRepo {
 	}
 }
 
+// Create создает запись о проекте
 func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project) error {
 	query := `
 		INSERT INTO projects (user_id, name, repo_url, build_command)
@@ -54,6 +55,7 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 	return nil
 }
 
+// GetByID возвращает запись о проекте по его идентификатору
 func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Project, error) {
 	query := `
 		SELECT id, user_id, name, repo_url, build_command, created_at
@@ -84,4 +86,48 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 	}
 
 	return &project, nil
+}
+
+// ListByUserID возвращает список проектов по идентификатору пользователя
+func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Project, error) {
+	query := `
+		SELECT id, user_id, name, repo_url, build_command, created_at
+		FROM projects
+		WHERE user_id = $1;
+	`
+
+	projects := make([]*model.Project, 0)
+
+	r, err := p.pool.Query(ctx, query, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, postgres.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("get list of projects by user id: %w", err)
+	}
+	defer r.Close()
+
+	for r.Next() {
+		var project model.Project
+
+		err := r.Scan(
+			&project.ID,
+			&project.UserID,
+			&project.Name,
+			&project.RepoURL,
+			&project.BuildCommand,
+			&project.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan project: %w", err)
+		}
+
+		projects = append(projects, &project)
+	}
+
+	if err := r.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration: %w", err)
+	}
+
+	return projects, nil
 }
