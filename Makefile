@@ -1,4 +1,4 @@
-include config/.env.pg
+include config/.pg.env
 
 export GOOSE_DRIVER := postgres
 export GOOSE_DBSTRING := postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)?sslmode=disable
