@@ -25,10 +25,10 @@ go.work
 go.work.sum
 
 # Env file
-config/.env.minio
-config/.env.nats
-config/.env.pg
-config/.env.core
+config/.minio.env
+config/.nats.env
+config/.pg.env
+config/.core.env
 
 # Editor/IDE
 .idea/

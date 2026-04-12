@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"sync"
@@ -53,12 +52,8 @@ func get() (*Config, error) {
 	var err error
 	once.Do(func() {
 		cfg = &Config{}
-		if err = cleanenv.ReadConfig("config/.env.core", cfg); err != nil {
-			err = cleanenv.ReadEnv(cfg)
-		}
-		if err != nil {
-			err = fmt.Errorf("config error: %w", err)
-		}
+		err = cleanenv.ReadConfig("config/.core.env", cfg)
+		err = cleanenv.ReadEnv(cfg)
 	})
 	return cfg, err
 }

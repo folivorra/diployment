@@ -14,7 +14,7 @@ services:
     image: postgres:14-alpine
     container_name: postgresql
     env_file:
-      - config/.env.pg
+      - config/.pg.env
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -48,7 +48,7 @@ services:
     image: natsio/nats-box:0.19.2
     container_name: nats-cli
     env_file:
-      - config/.env.nats
+      - config/.nats.env
     depends_on:
       nats:
         condition: service_healthy
@@ -63,7 +63,7 @@ services:
       - "127.0.0.1:9000:9000" # для доступа к хранилищу
       - "127.0.0.1:9001:9001" # для доступа к админке
     env_file:
-      - config/.env.minio
+      - config/.minio.env
     volumes:
       - minio_data:/var/lib/minio/data
     command: 'server /var/lib/minio/data --console-address ":9001"' # задаем путь волюма и порт для админки

@@ -31,7 +31,7 @@ func main() {
 	e.Use(slogecho.New(log))    // чтобы каждый HTTP-запрос логировался в slog
 	e.Use(middleware.Recover()) // чтобы сервер не падал на панике, а писал ошибку в логи
 
-	log.Info("starting server", slog.String("address", cfg.HTTP.Address()), slog.Any("config", cfg))
+	log.Info("starting server", slog.String("address", cfg.HTTP.Address()), slog.Any("env_mode", cfg.Env))
 
 	go func() {
 		if err := e.Start(cfg.HTTP.Address()); err != nil && !errors.Is(err, http.ErrServerClosed) {
