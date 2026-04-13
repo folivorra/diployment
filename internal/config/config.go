@@ -32,6 +32,7 @@ type PostgresConfig struct {
 }
 
 type AuthConfig struct {
+	MasterKey string        `env:"MASTER_KEY" env-required:"true"`
 	JWTSecret string        `env:"JWT_SECRET" env-required:"true"`
 	JWTTTL    time.Duration `env:"JWT_TTL" env-default:"168h"`
 }

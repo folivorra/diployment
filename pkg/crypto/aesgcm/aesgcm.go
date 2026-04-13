@@ -4,11 +4,18 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 )
 
-func Encrypt(plainText string, key []byte, userData []byte) ([]byte, error) {
+func Encrypt(plainText string, encyptedKey string, userData []byte) ([]byte, error) {
+	// декодирование мастер-ключа из Base64
+	key, err := base64.StdEncoding.DecodeString(encyptedKey)
+	if err != nil {
+		return nil, fmt.Errorf("decoding master key: %w", err)
+	}
+
 	// инициализация aes
 	block, err := aes.NewCipher(key)
 	if err != nil {

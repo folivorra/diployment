@@ -28,17 +28,21 @@ func NewUserPostgresRepo(pool *pgxpool.Pool) *userPostgresRepo {
 // Если запись о пользователе с таким же github_id уже существует - обновляет информацию.
 func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) error {
 	query := `
-		INSERT INTO users (github_id, avatar_url, github_token) 
-		VALUES ($1, $2, $3)
+		INSERT INTO users (id, github_id, avatar_url, github_token) 
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (github_id) 
 		DO UPDATE SET 
 			avatar_url = EXCLUDED.avatar_url,
 			github_token = EXCLUDED.github_token;
 	`
 
+	// fixme придумать более элегантное решение
+	id, _ := uuid.NewUUID()
+
 	_, err := u.pool.Exec(
 		ctx,
 		query,
+		id,
 		user.GithubID,
 		user.AvatarURL,
 		user.EncryptedToken,
