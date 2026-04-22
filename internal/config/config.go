@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -53,7 +55,12 @@ func get() (*Config, error) {
 	var err error
 	once.Do(func() {
 		cfg = &Config{}
-		err = cleanenv.ReadConfig("config/.core.env", cfg)
+		if err = cleanenv.ReadConfig("config/.core.env", cfg); err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return
+			}
+			err = nil
+		}
 		err = cleanenv.ReadEnv(cfg)
 	})
 	return cfg, err

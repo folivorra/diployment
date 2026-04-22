@@ -100,9 +100,6 @@ func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID
 
 	r, err := p.pool.Query(ctx, query, userID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, postgres.ErrUserNotFound
-		}
 		return nil, fmt.Errorf("get list of projects by user id: %w", err)
 	}
 	defer r.Close()

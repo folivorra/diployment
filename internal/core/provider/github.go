@@ -47,7 +47,7 @@ func (g *GitHubProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get user from GitHub API: %w", err)
+		return nil, fmt.Errorf("get user from GitHub API: status %s", resp.Status)
 	}
 
 	var extUser *model.ExternalUser

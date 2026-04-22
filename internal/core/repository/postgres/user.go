@@ -26,7 +26,7 @@ func NewUserPostgresRepo(pool *pgxpool.Pool) *userPostgresRepo {
 // Upsert создает запись о пользователе.
 //
 // Если запись о пользователе с таким же github_id уже существует - обновляет информацию.
-func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) error {
+func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (uuid.UUID, error) {
 	query := `
 		INSERT INTO users (id, github_id, avatar_url, github_token) 
 		VALUES ($1, $2, $3, $4)
@@ -36,8 +36,7 @@ func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) error {
 			github_token = EXCLUDED.github_token;
 	`
 
-	// fixme придумать более элегантное решение
-	id, _ := uuid.NewUUID()
+	id := uuid.New()
 
 	_, err := u.pool.Exec(
 		ctx,
@@ -49,10 +48,10 @@ func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("save user into db: %w", err)
+		return uuid.UUID{}, fmt.Errorf("save user into db: %w", err)
 	}
 
-	return nil
+	return id, nil
 }
 
 // GetByID возвращает запись о пользователе по его идентификатору.

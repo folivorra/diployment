@@ -9,9 +9,9 @@ import (
 	"io"
 )
 
-func Encrypt(plainText string, encyptedKey string, userData []byte) ([]byte, error) {
+func Encrypt(plainText string, encryptedKey string, userData []byte) ([]byte, error) {
 	// декодирование мастер-ключа из Base64
-	key, err := base64.StdEncoding.DecodeString(encyptedKey)
+	key, err := base64.StdEncoding.DecodeString(encryptedKey)
 	if err != nil {
 		return nil, fmt.Errorf("decoding master key: %w", err)
 	}

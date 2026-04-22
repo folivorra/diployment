@@ -60,7 +60,7 @@ func main() {
 
 	go func() {
 		if err := e.Start(cfg.HTTP.Address()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			e.Logger.Error("server failed to start: %v", slog.Any("error", err))
+			e.Logger.Errorf("server failed to start: %v", slog.Any("error", err))
 		}
 	}()
 

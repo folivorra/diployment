@@ -13,16 +13,12 @@ func TestGenerateAccessToken(t *testing.T) {
 	secret := []byte("test-secret")
 	ttl := time.Hour
 
-	token, exp, err := jwt.GenerateAccessToken(userID, secret, ttl)
+	token, err := jwt.GenerateAccessToken(userID, secret, ttl)
 	if err != nil {
 		t.Fatalf("failed to generate access token: %v", err)
 	}
 
 	if token == "" {
 		t.Fatal("generated token is empty")
-	}
-
-	if exp.Before(time.Now()) {
-		t.Fatal("expiration time is in the past")
 	}
 }

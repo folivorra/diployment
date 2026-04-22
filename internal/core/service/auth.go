@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+
 	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
 
 	"github.com/folivorra/diployment/internal/config"
@@ -14,7 +15,7 @@ import (
 )
 
 type UserRepository interface {
-	Upsert(ctx context.Context, user *model.User) error
+	Upsert(ctx context.Context, user *model.User) (uuid.UUID, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 }
 
@@ -60,11 +61,12 @@ func (a *AuthService) Authenticate(ctx context.Context, code string) (string, er
 
 	user.EncryptedToken = encryptedToken
 
-	if err = a.repo.Upsert(ctx, user); err != nil {
+	id, err := a.repo.Upsert(ctx, user)
+	if err != nil {
 		return "", fmt.Errorf("upsert user info: %w", err) // todo 500
 	}
 
-	jwtToken, err := jwt.GenerateAccessToken(user.ID, []byte(a.authCfg.JWTSecret), a.authCfg.JWTTTL)
+	jwtToken, err := jwt.GenerateAccessToken(id, []byte(a.authCfg.JWTSecret), a.authCfg.JWTTTL)
 	if err != nil {
 		return "", fmt.Errorf("generate access token: %w", err) // todo 500
 	}
