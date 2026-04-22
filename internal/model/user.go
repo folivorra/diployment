@@ -14,9 +14,3 @@ type User struct {
 
 	EncryptedToken []byte `json:"-"`
 }
-
-// todo мб вынести просто как временный объект в функции, тут выглядит нелепо
-type ExternalUser struct {
-	ID        int    `json:"id"`
-	AvatarURL string `json:"avatar_url"`
-}

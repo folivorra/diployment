@@ -13,6 +13,11 @@ import (
 	"golang.org/x/oauth2/github"
 )
 
+type githubUser struct {
+	ID        int    `json:"id"`
+	AvatarURL string `json:"avatar_url"`
+}
+
 type GitHubProvider struct {
 	oauthCfg *oauth2.Config
 }
@@ -50,15 +55,13 @@ func (g *GitHubProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (
 		return nil, fmt.Errorf("get user from GitHub API: status %s", resp.Status)
 	}
 
-	var extUser *model.ExternalUser
-	if err = json.NewDecoder(resp.Body).Decode(&extUser); err != nil {
-		return nil, fmt.Errorf("decode response body to json: %w", err)
+	var ghUser githubUser
+	if err = json.NewDecoder(resp.Body).Decode(&ghUser); err != nil {
+		return nil, fmt.Errorf("decode response body: %w", err)
 	}
 
-	user := &model.User{
-		GithubID:  extUser.ID,
-		AvatarURL: extUser.AvatarURL,
-	}
-
-	return user, nil
+	return &model.User{
+		GithubID:  ghUser.ID,
+		AvatarURL: ghUser.AvatarURL,
+	}, nil
 }

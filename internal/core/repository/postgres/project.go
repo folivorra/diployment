@@ -7,6 +7,7 @@ import (
 
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/internal/pgpool"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
@@ -41,7 +42,7 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 	)
 
 	if err != nil {
-		var pgErr *pgpool.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == pgerrcode.UniqueViolation {
 				return pgpool.ErrProjectAlreadyExist

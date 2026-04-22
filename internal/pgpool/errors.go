@@ -4,9 +4,9 @@ import "errors"
 
 var (
 	// users
-	ErrUserNotFound = errors.New("user is not founded in db")
+	ErrUserNotFound = errors.New("user not found")
 
 	// projects
-	ErrProjectAlreadyExist = errors.New("project already exists in db")
-	ErrProjectNotFound     = errors.New("project is not founded in db")
+	ErrProjectAlreadyExist = errors.New("project already exists")
+	ErrProjectNotFound     = errors.New("project not found")
 )

@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 
+	"github.com/folivorra/diployment/internal/core/service"
 	"github.com/labstack/echo/v4"
 )
 
@@ -15,12 +17,12 @@ type AuthService interface {
 }
 
 type AuthHandler struct {
-	service AuthService
+	svc AuthService
 }
 
 func NewAuthHandler(authSrv AuthService) *AuthHandler {
 	return &AuthHandler{
-		service: authSrv,
+		svc: authSrv,
 	}
 }
 
@@ -29,21 +31,21 @@ func (a *AuthHandler) Login(c echo.Context) error {
 	state := generateState()
 
 	c.SetCookie(&http.Cookie{
-		Name:   "state",
-		Value:  state,
-		MaxAge: 3600,
-		Path:   "/",
-		//Domain:   "localhost",
+		Name:     "state",
+		Value:    state,
+		MaxAge:   3600,
+		Path:     "/",
 		Secure:   false, // fixme на проде это ДОЛЖНО быть true
 		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 
-	url := a.service.GetAuthCodeURL(state)
+	url := a.svc.GetAuthCodeURL(state)
 
 	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
-// Callback
+// Callback обменивает code на JWT токен и устанавливает его в куку.
 func (a *AuthHandler) Callback(c echo.Context) error {
 	if err := validateState(c); err != nil {
 		return err
@@ -54,11 +56,16 @@ func (a *AuthHandler) Callback(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "code is missing")
 	}
 
-	jwtToken, err := a.service.Authenticate(c.Request().Context(), code)
+	jwtToken, err := a.svc.Authenticate(c.Request().Context(), code)
 	if err != nil {
-		// todo разделить ошибки (сейчас на все отдаю 500)
-		// todo добавить 403 на ошибки обмена токена и 502 на ошибки GH APIU
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		switch {
+		case errors.Is(err, service.ErrCodeExchange):
+			return echo.NewHTTPError(http.StatusForbidden, "authorization code is invalid or expired")
+		case errors.Is(err, service.ErrProviderAPI):
+			return echo.NewHTTPError(http.StatusBadGateway, "GitHub API is unavailable")
+		default:
+			return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
+		}
 	}
 
 	c.SetCookie(&http.Cookie{
@@ -67,6 +74,7 @@ func (a *AuthHandler) Callback(c echo.Context) error {
 		HttpOnly: true,
 		Secure:   false, // fixme на проде это ДОЛЖНО быть true
 		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	return c.Redirect(http.StatusTemporaryRedirect, "http://localhost:3000/dashboard") // fixme добавить фронт кфг
@@ -81,21 +89,17 @@ func generateState() string {
 
 // validateState валидирует state, сравнивая переданное в cookie и в query.
 func validateState(c echo.Context) error {
-	// достаем state из куки
 	cookieState, err := c.Cookie("state")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "state cookie not found")
 	}
 
-	// достаем state из query
 	queryState := c.QueryParam("state")
 
-	// state`ы должны совпасть - иначе угроза CSRF атаки
 	if cookieState.Value != queryState {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid state")
 	}
 
-	// удаление куки, чтобы не висела MaxAge
 	cookieState.MaxAge = -1
 	c.SetCookie(cookieState)
 

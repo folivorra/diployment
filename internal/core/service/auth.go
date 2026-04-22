@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
@@ -12,6 +13,11 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
+)
+
+var (
+	ErrCodeExchange = errors.New("code exchange failed")
+	ErrProviderAPI  = errors.New("provider API error")
 )
 
 type UserRepository interface {
@@ -25,50 +31,50 @@ type Provider interface {
 	GetUserInfo(ctx context.Context, token *oauth2.Token) (*model.User, error)
 }
 
-type AuthService struct {
+type authService struct {
 	provider Provider
 	repo     UserRepository
 	authCfg  config.AuthConfig
 }
 
-func NewAuthService(provider Provider, repo UserRepository, authCfg config.AuthConfig) *AuthService {
-	return &AuthService{
+func NewAuthService(provider Provider, repo UserRepository, authCfg config.AuthConfig) *authService {
+	return &authService{
 		provider: provider,
 		repo:     repo,
 		authCfg:  authCfg,
 	}
 }
 
-func (a *AuthService) GetAuthCodeURL(state string) string {
+func (a *authService) GetAuthCodeURL(state string) string {
 	return a.provider.AuthCodeURL(state)
 }
 
-func (a *AuthService) Authenticate(ctx context.Context, code string) (string, error) {
+func (a *authService) Authenticate(ctx context.Context, code string) (string, error) {
 	token, err := a.provider.Exchange(ctx, code)
 	if err != nil {
-		return "", fmt.Errorf("exchange code: %w", err) // todo 403
+		return "", fmt.Errorf("%w: %w", ErrCodeExchange, err)
 	}
 
 	user, err := a.provider.GetUserInfo(ctx, token)
 	if err != nil {
-		return "", fmt.Errorf("get user info: %w", err) // todo 502 или 500 (decoder err)
+		return "", fmt.Errorf("%w: %w", ErrProviderAPI, err)
 	}
 
 	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.authCfg.MasterKey, []byte("USER-DATA"))
 	if err != nil {
-		return "", fmt.Errorf("encrypt token: %w", err) // todo 500
+		return "", fmt.Errorf("encrypt token: %w", err)
 	}
 
 	user.EncryptedToken = encryptedToken
 
 	id, err := a.repo.Upsert(ctx, user)
 	if err != nil {
-		return "", fmt.Errorf("upsert user info: %w", err) // todo 500
+		return "", fmt.Errorf("upsert user: %w", err)
 	}
 
 	jwtToken, err := jwt.GenerateAccessToken(id, []byte(a.authCfg.JWTSecret), a.authCfg.JWTTTL)
 	if err != nil {
-		return "", fmt.Errorf("generate access token: %w", err) // todo 500
+		return "", fmt.Errorf("generate access token: %w", err)
 	}
 
 	return jwtToken, nil
