@@ -28,3 +28,23 @@ func GenerateAccessToken(userID *uuid.UUID, secret []byte, ttl time.Duration) (s
 
 	return signedToken, nil
 }
+
+func ParseAccessToken(token string, secret string) (*uuid.UUID, error) {
+	var claims jwt.RegisteredClaims
+	_, err := jwt.ParseWithClaims(token, &claims, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("parsing token: %w", err)
+	}
+
+	sub, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return nil, fmt.Errorf("parsing claims: %w", err)
+	}
+
+	return &sub, nil
+}
