@@ -48,8 +48,7 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 				return pgpool.ErrProjectAlreadyExist
 			}
 		}
-
-		return fmt.Errorf("create project in db: %w", err)
+		return fmt.Errorf("create project: %w", err)
 	}
 
 	return nil
@@ -82,7 +81,7 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, pgpool.ErrProjectNotFound
 		}
-		return nil, fmt.Errorf("get project by id from db: %w", err)
+		return nil, fmt.Errorf("get project by id: %w", err)
 	}
 
 	return &project, nil

@@ -26,32 +26,31 @@ func NewUserPostgresRepo(pool *pgxpool.Pool) *userPostgresRepo {
 // Upsert создает запись о пользователе.
 //
 // Если запись о пользователе с таким же github_id уже существует - обновляет информацию.
-func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (uuid.UUID, error) {
+func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (*uuid.UUID, error) {
 	query := `
-		INSERT INTO users (id, github_id, avatar_url, github_token) 
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO users (github_id, avatar_url, github_token) 
+		VALUES ($1, $2, $3)
 		ON CONFLICT (github_id) 
 		DO UPDATE SET 
 			avatar_url = EXCLUDED.avatar_url,
-			github_token = EXCLUDED.github_token;
+			github_token = EXCLUDED.github_token
+		RETURNING id;
 	`
 
-	id := uuid.New()
-
-	_, err := u.pool.Exec(
+	var id uuid.UUID
+	err := u.pool.QueryRow(
 		ctx,
 		query,
-		id,
 		user.GithubID,
 		user.AvatarURL,
 		user.EncryptedToken,
-	)
+	).Scan(&id)
 
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("save user into db: %w", err)
+		return nil, fmt.Errorf("upsert user: %w", err)
 	}
 
-	return id, nil
+	return &id, nil
 }
 
 // GetByID возвращает запись о пользователе по его идентификатору.
@@ -80,7 +79,7 @@ func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Us
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, pgpool.ErrUserNotFound
 		}
-		return nil, fmt.Errorf("get user from db: %w", err)
+		return nil, fmt.Errorf("get user: %w", err)
 	}
 
 	return &user, nil

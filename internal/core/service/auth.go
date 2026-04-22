@@ -21,7 +21,7 @@ var (
 )
 
 type UserRepository interface {
-	Upsert(ctx context.Context, user *model.User) (uuid.UUID, error)
+	Upsert(ctx context.Context, user *model.User) (*uuid.UUID, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 }
 
@@ -62,7 +62,7 @@ func (a *authService) Authenticate(ctx context.Context, code string) (string, er
 		return "", fmt.Errorf("%w: %w", ErrProviderAPI, err)
 	}
 
-	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.key, []byte("USER-DATA"))
+	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.key, []byte("USER-DATA")) // fixme константная юзер дата
 	if err != nil {
 		return "", fmt.Errorf("encrypt token: %w", err)
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 // GenerateAccessToken генерирует новый JWT токен (hmac-sha256)
-func GenerateAccessToken(userID uuid.UUID, secret []byte, ttl time.Duration) (string, error) {
+func GenerateAccessToken(userID *uuid.UUID, secret []byte, ttl time.Duration) (string, error) {
 	now := time.Now().UTC()
 	exp := now.Add(ttl)
 

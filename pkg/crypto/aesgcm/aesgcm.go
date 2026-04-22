@@ -35,9 +35,9 @@ func Encrypt(plainText string, key string, userData []byte) ([]byte, error) {
 	return cipherText, nil
 }
 
-func Decrypt(encryptedData []byte, key []byte, userData []byte) (string, error) {
+func Decrypt(encryptedData []byte, key string, userData []byte) (string, error) {
 	// инициализация aes
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return "", fmt.Errorf("init aes cipher: %w", err)
 	}

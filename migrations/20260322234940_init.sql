@@ -4,7 +4,7 @@
 -- users это пользователи, привязанные к github user, благодаря чему не требуется хранить пароль
 CREATE TABLE users (
     -- уникальный ID пользователя
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- github ID для дедупликации пользователей
     github_id BIGINT UNIQUE NOT NULL,
     -- ссылка на аватар пользователя из github, красиво для UI
