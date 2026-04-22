@@ -41,7 +41,7 @@ func main() {
 
 	userRepo := postgres.NewUserPostgresRepo(pool)
 	githubProvider := provider.NewGitHubProvider(cfg.GitHub)
-	authService := service.NewAuthService(githubProvider, userRepo, cfg.Auth)
+	authService := service.NewAuthService(githubProvider, userRepo, cfg.Auth, cfg.MasterKey)
 	authHandler := handler.NewAuthHandler(authService)
 
 	e := echo.New()

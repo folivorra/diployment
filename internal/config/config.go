@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -14,6 +16,8 @@ import (
 type Config struct {
 	Env string `env:"APP_ENV" env-default:"local"` // local, dev
 
+	MasterKey string `env:"MASTER_KEY" env-required:"true"`
+
 	HTTP     HTTPConfig
 	Postgres PostgresConfig
 	Auth     AuthConfig
@@ -25,16 +29,11 @@ type HTTPConfig struct {
 	Host string `env:"HTTP_HOST" env-default:"localhost"`
 }
 
-func (h HTTPConfig) Address() string {
-	return net.JoinHostPort(h.Host, h.Port)
-}
-
 type PostgresConfig struct {
 	DSN string `env:"DATABASE_URL" env-required:"true"`
 }
 
 type AuthConfig struct {
-	MasterKey string        `env:"MASTER_KEY" env-required:"true"`
 	JWTSecret string        `env:"JWT_SECRET" env-required:"true"`
 	JWTTTL    time.Duration `env:"JWT_TTL" env-default:"168h"`
 }
@@ -50,6 +49,18 @@ var (
 	once sync.Once
 )
 
+func (h HTTPConfig) Address() string {
+	return net.JoinHostPort(h.Host, h.Port)
+}
+
+func decodeBase64Key(encoded string) (string, error) {
+	key, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", fmt.Errorf("decoding master key: %w", err)
+	}
+	return string(key), nil
+}
+
 // get читает конфиг один раз и возвращает его.
 func get() (*Config, error) {
 	var err error
@@ -61,13 +72,25 @@ func get() (*Config, error) {
 			}
 			err = nil
 		}
-		err = cleanenv.ReadEnv(cfg)
+		if err = cleanenv.ReadEnv(cfg); err != nil {
+			return
+		}
+		if cfg.MasterKey, err = decodeBase64Key(cfg.MasterKey); err != nil {
+			return
+		}
+		switch cfg.Env {
+		case "local", "dev":
+		default:
+			err = fmt.Errorf("unknown environment: %s", cfg.Env)
+		}
 	})
-	return cfg, err
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
-// MustGet обязательно вернет конфиг или упадет с ошибкой,
-// если корректный конфиг невозможно вернуть.
+// MustGet обязательно вернет конфиг или упадет с ошибкой, если корректный конфиг невозможно вернуть.
 func MustGet() *Config {
 	if _, err := get(); err != nil {
 		log.Fatalf("cfg configure: %v", err)

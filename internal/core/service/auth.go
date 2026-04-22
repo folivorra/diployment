@@ -35,13 +35,15 @@ type authService struct {
 	provider Provider
 	repo     UserRepository
 	authCfg  config.AuthConfig
+	key      string
 }
 
-func NewAuthService(provider Provider, repo UserRepository, authCfg config.AuthConfig) *authService {
+func NewAuthService(provider Provider, repo UserRepository, authCfg config.AuthConfig, key string) *authService {
 	return &authService{
 		provider: provider,
 		repo:     repo,
 		authCfg:  authCfg,
+		key:      key,
 	}
 }
 
@@ -60,7 +62,7 @@ func (a *authService) Authenticate(ctx context.Context, code string) (string, er
 		return "", fmt.Errorf("%w: %w", ErrProviderAPI, err)
 	}
 
-	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.authCfg.MasterKey, []byte("USER-DATA"))
+	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.key, []byte("USER-DATA"))
 	if err != nil {
 		return "", fmt.Errorf("encrypt token: %w", err)
 	}
