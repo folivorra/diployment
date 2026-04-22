@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/folivorra/diployment/internal/model"
-	"github.com/folivorra/diployment/internal/postgres"
+	"github.com/folivorra/diployment/internal/pgpool"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -78,7 +78,7 @@ func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Us
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, postgres.ErrUserNotFound
+			return nil, pgpool.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("get user from db: %w", err)
 	}

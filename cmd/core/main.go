@@ -15,7 +15,7 @@ import (
 	"github.com/folivorra/diployment/internal/core/provider"
 	"github.com/folivorra/diployment/internal/core/repository/postgres"
 	"github.com/folivorra/diployment/internal/core/service"
-	ppool "github.com/folivorra/diployment/internal/postgres"
+	"github.com/folivorra/diployment/internal/pgpool"
 	"github.com/folivorra/diployment/pkg/logger"
 
 	"github.com/labstack/echo/v4"
@@ -34,7 +34,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	pool, err := ppool.NewPool(ctx, cfg.Postgres.DSN)
+	pool, err := pgpool.NewPool(ctx, cfg.Postgres.DSN)
 	if err != nil {
 		flog.Fatalf("cannot create pgx pool: %v", err)
 	}
