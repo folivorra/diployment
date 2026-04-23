@@ -54,7 +54,7 @@ func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (*uuid.
 }
 
 // GetByID возвращает запись о пользователе по его идентификатору.
-func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
+func (u *userPostgresRepo) GetByID(ctx context.Context, id *uuid.UUID) (*model.User, error) {
 	query := `
 		SELECT id, github_id, avatar_url, github_token, created_at 
 		FROM users 

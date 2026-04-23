@@ -12,6 +12,7 @@ import (
 
 	"github.com/folivorra/diployment/internal/config"
 	"github.com/folivorra/diployment/internal/core/handler"
+	authmddlwr "github.com/folivorra/diployment/internal/core/handler/middleware"
 	"github.com/folivorra/diployment/internal/core/provider"
 	"github.com/folivorra/diployment/internal/core/repository/postgres"
 	"github.com/folivorra/diployment/internal/core/service"
@@ -41,7 +42,9 @@ func main() {
 
 	userRepo := postgres.NewUserPostgresRepo(pool)
 	githubProvider := provider.NewGitHubProvider(cfg.GitHub)
+	repoService := service.NewRepoService(githubProvider, userRepo, cfg.MasterKey)
 	authService := service.NewAuthService(githubProvider, userRepo, cfg.Auth, cfg.MasterKey)
+	repoHandler := handler.NewRepoHandler(repoService)
 	authHandler := handler.NewAuthHandler(authService)
 
 	e := echo.New()
@@ -53,8 +56,17 @@ func main() {
 		AllowCredentials: true, // важно для работы с куками!
 	}))
 
-	e.GET("/auth/login", authHandler.Login)              // redirect to GitHub
-	e.GET("/auth/github/callback", authHandler.Callback) // callback to get user info from GitHub
+	auth := e.Group("/auth")
+	{
+		auth.GET("/login", authHandler.Login)       // редиректит на провайдера
+		auth.GET("/callback", authHandler.Callback) // callback для получения инфо о юзере GitHub
+	}
+
+	api := e.Group("/api")
+	{
+		api.Use(authmddlwr.AuthMiddleware(cfg.Auth.JWTSecret)) // проверяет jwt токен и кладет user_id в контекст
+		api.GET("/repos", repoHandler.ListRepos)               // получаем список репозиториев пользователя
+	}
 
 	log.Info("starting server", slog.String("address", cfg.HTTP.Address()), slog.Any("env_mode", cfg.Env))
 

@@ -16,18 +16,18 @@ type AuthService interface {
 	Authenticate(ctx context.Context, code string) (string, error)
 }
 
-type AuthHandler struct {
+type authHandler struct {
 	svc AuthService
 }
 
-func NewAuthHandler(authSrv AuthService) *AuthHandler {
-	return &AuthHandler{
+func NewAuthHandler(authSrv AuthService) *authHandler {
+	return &authHandler{
 		svc: authSrv,
 	}
 }
 
-// Login выполняет редирект на GH для запроса прав.
-func (a *AuthHandler) Login(c echo.Context) error {
+// Login выполняет редирект на провайдера для запроса прав.
+func (a *authHandler) Login(c echo.Context) error {
 	state := generateState()
 
 	c.SetCookie(&http.Cookie{
@@ -46,7 +46,7 @@ func (a *AuthHandler) Login(c echo.Context) error {
 }
 
 // Callback обменивает code на JWT токен и устанавливает его в куку.
-func (a *AuthHandler) Callback(c echo.Context) error {
+func (a *authHandler) Callback(c echo.Context) error {
 	if err := validateState(c); err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (a *AuthHandler) Callback(c echo.Context) error {
 		case errors.Is(err, service.ErrCodeExchange):
 			return echo.NewHTTPError(http.StatusForbidden, "authorization code is invalid or expired")
 		case errors.Is(err, service.ErrProviderAPI):
-			return echo.NewHTTPError(http.StatusBadGateway, "GitHub API is unavailable")
+			return echo.NewHTTPError(http.StatusBadGateway, "provider API is unavailable")
 		default:
 			return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
 		}
@@ -77,7 +77,7 @@ func (a *AuthHandler) Callback(c echo.Context) error {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	return c.Redirect(http.StatusTemporaryRedirect, "http://localhost:3000/dashboard") // fixme добавить фронт кфг
+	return c.Redirect(http.StatusTemporaryRedirect, "http://127.0.0.1:3000/dashboard") // fixme добавить фронт кфг
 }
 
 // generateState возвращает рандомно сгенерированную строку в base64 для использования как state.
@@ -100,8 +100,14 @@ func validateState(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid state")
 	}
 
-	cookieState.MaxAge = -1
-	c.SetCookie(cookieState)
+	c.SetCookie(&http.Cookie{
+		Name:     "state",
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
 
 	return nil
 }

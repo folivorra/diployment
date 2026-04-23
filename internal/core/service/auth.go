@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
@@ -15,14 +14,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
-var (
-	ErrCodeExchange = errors.New("code exchange failed")
-	ErrProviderAPI  = errors.New("provider API error")
-)
-
 type UserRepository interface {
 	Upsert(ctx context.Context, user *model.User) (*uuid.UUID, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
+	GetByID(ctx context.Context, id *uuid.UUID) (*model.User, error)
 }
 
 type Provider interface {
@@ -71,7 +65,7 @@ func (a *authService) Authenticate(ctx context.Context, code string) (string, er
 
 	id, err := a.repo.Upsert(ctx, user)
 	if err != nil {
-		return "", fmt.Errorf("upsert user: %w", err)
+		return "", fmt.Errorf("save user information: %w", err)
 	}
 
 	jwtToken, err := jwt.GenerateAccessToken(id, []byte(a.authCfg.JWTSecret), a.authCfg.JWTTTL)
