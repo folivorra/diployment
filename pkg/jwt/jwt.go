@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// GenerateAccessToken генерирует новый JWT токен (hmac-sha256)
+// GenerateAccessToken генерирует новый JWT токен (hmac-sha256).
 func GenerateAccessToken(userID *uuid.UUID, secret []byte, ttl time.Duration) (string, error) {
 	now := time.Now().UTC()
 	exp := now.Add(ttl)
@@ -29,6 +29,7 @@ func GenerateAccessToken(userID *uuid.UUID, secret []byte, ttl time.Duration) (s
 	return signedToken, nil
 }
 
+// ParseAccessToken проверяет алгоритм шифрования токена и вытаскивает из claims идентификатор пользователя.
 func ParseAccessToken(token string, secret string) (*uuid.UUID, error) {
 	var claims jwt.RegisteredClaims
 	_, err := jwt.ParseWithClaims(token, &claims, func(token *jwt.Token) (any, error) {
