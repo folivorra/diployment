@@ -20,10 +20,10 @@ type RepoLister interface {
 type repoService struct {
 	lister RepoLister
 	getter UserGetter
-	key    string
+	key    []byte
 }
 
-func NewRepoService(lister RepoLister, getter UserGetter, key string) *repoService {
+func NewRepoService(lister RepoLister, getter UserGetter, key []byte) *repoService {
 	return &repoService{lister: lister, getter: getter, key: key}
 }
 

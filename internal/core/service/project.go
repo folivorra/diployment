@@ -39,10 +39,10 @@ type projectService struct {
 	repo ProjectRepository
 	wc   WebhookCreator
 	og   RepoOwnerGetter
-	key  string
+	key  []byte
 }
 
-func NewProjectService(repo ProjectRepository, wc WebhookCreator, og RepoOwnerGetter, key string) *projectService {
+func NewProjectService(repo ProjectRepository, wc WebhookCreator, og RepoOwnerGetter, key []byte) *projectService {
 	return &projectService{repo: repo, wc: wc, og: og, key: key}
 }
 

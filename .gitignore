@@ -29,6 +29,7 @@ config/.minio.env
 config/.nats.env
 config/.pg.env
 config/.core.env
+config/.webhook.env
 
 # Editor/IDE
 .idea/

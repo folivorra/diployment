@@ -7,31 +7,55 @@ import (
 	"log"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
-type Config struct {
-	Env string `env:"APP_ENV" env-default:"local"` // local, dev
+type CoreConfig struct {
+	Env Env `env:"APP_ENV" env-default:"local"` // local, dev
 
-	MasterKey string `env:"MASTER_KEY" env-required:"true"`
+	MasterKey []byte `env:"MASTER_KEY" env-required:"true"`
 
 	HTTP     HTTPConfig
 	Postgres PostgresConfig
 	Auth     AuthConfig
 	GitHub   GitHubConfig
-	Webhook  WebhookConfig
+	Webhook  WebhookServiceConfig
 }
 
 type WebhookConfig struct {
-	URL string `env:"WEBHOOK_URL" env-required:"true"`
+	Env Env `env:"APP_ENV" env-default:"local"` // local, dev
+
+	MasterKey []byte `env:"MASTER_KEY" env-required:"true"`
+
+	HTTP     HTTPConfig
+	Postgres PostgresConfig
+	NATS     NATSConfig
+}
+
+type Env string
+
+const (
+	EnvLocal Env = "local"
+	EnvDev   Env = "dev"
+)
+
+func (e Env) IsValid() bool {
+	return e == EnvLocal || e == EnvDev
+}
+
+type NATSConfig struct {
+	URL string `env:"NATS_URL" env-required:"true"`
 }
 
 type HTTPConfig struct {
 	Port string `env:"HTTP_PORT" env-default:"8080"`
 	Host string `env:"HTTP_HOST" env-default:"localhost"`
+}
+
+func (h HTTPConfig) Address() string {
+	return net.JoinHostPort(h.Host, h.Port)
 }
 
 type PostgresConfig struct {
@@ -49,56 +73,55 @@ type GitHubConfig struct {
 	RedirectURL  string `env:"GITHUB_REDIRECT_URL" env-required:"true"`
 }
 
-var (
-	cfg  *Config
-	once sync.Once
-)
-
-func (h HTTPConfig) Address() string {
-	return net.JoinHostPort(h.Host, h.Port)
+type WebhookServiceConfig struct {
+	URL string `env:"WEBHOOK_URL" env-required:"true"`
 }
 
-func decodeBase64Key(encoded string) (string, error) {
-	key, err := base64.StdEncoding.DecodeString(encoded)
+func decodeBase64Key(encoded []byte) ([]byte, error) {
+	key := make([]byte, len(encoded))
+	_, err := base64.StdEncoding.Decode(key, encoded)
 	if err != nil {
-		return "", fmt.Errorf("decoding master key: %w", err)
+		return nil, fmt.Errorf("decoding master key: %w", err)
 	}
-	return string(key), nil
+	return key, nil
 }
 
-// get читает конфиг один раз и возвращает его.
-func get() (*Config, error) {
-	var err error
-	once.Do(func() {
-		cfg = &Config{}
-		if err = cleanenv.ReadConfig("config/.core.env", cfg); err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
-				return
-			}
-			err = nil
+func MustGetCore(envFile string) *CoreConfig {
+	cfg := &CoreConfig{}
+	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("cfg configure: %v", err)
 		}
-		if err = cleanenv.ReadEnv(cfg); err != nil {
-			return
-		}
-		if cfg.MasterKey, err = decodeBase64Key(cfg.MasterKey); err != nil {
-			return
-		}
-		switch cfg.Env {
-		case "local", "dev":
-		default:
-			err = fmt.Errorf("unknown environment: %s", cfg.Env)
-		}
-	})
-	if err != nil {
-		return nil, err
 	}
-	return cfg, nil
-}
-
-// MustGet обязательно вернет конфиг или упадет с ошибкой, если корректный конфиг невозможно вернуть.
-func MustGet() *Config {
-	if _, err := get(); err != nil {
+	if err := cleanenv.ReadEnv(cfg); err != nil {
 		log.Fatalf("cfg configure: %v", err)
+	}
+	var err error
+	if cfg.MasterKey, err = decodeBase64Key(cfg.MasterKey); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	if !cfg.Env.IsValid() {
+		log.Fatalf("cfg configure: APP_ENV invalid")
+	}
+	return cfg
+}
+
+func MustGetWebhook(envFile string) *WebhookConfig {
+	cfg := &WebhookConfig{}
+	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("cfg configure: %v", err)
+		}
+	}
+	if err := cleanenv.ReadEnv(cfg); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	var err error
+	if cfg.MasterKey, err = decodeBase64Key(cfg.MasterKey); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	if !cfg.Env.IsValid() {
+		log.Fatalf("cfg configure: APP_ENV invalid")
 	}
 	return cfg
 }

@@ -27,7 +27,7 @@ import (
 const shutdownTimeout = 10 * time.Second
 
 func main() {
-	cfg := config.MustGet()
+	cfg := config.MustGetCore("config/.core.env")
 
 	log := logger.Setup(cfg.Env)
 	slog.SetDefault(log)
@@ -87,7 +87,7 @@ func main() {
 	shuttingDownCtx, shuttingDownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shuttingDownCancel()
 
-	if err := e.Shutdown(shuttingDownCtx); err != nil {
+	if err = e.Shutdown(shuttingDownCtx); err != nil {
 		e.Logger.Fatal(err)
 	}
 }

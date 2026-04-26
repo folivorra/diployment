@@ -8,9 +8,9 @@ import (
 	"io"
 )
 
-func Encrypt(plainText string, key string, userData []byte) ([]byte, error) {
+func Encrypt(plainText string, key []byte, userData []byte) ([]byte, error) {
 	// инициализация aes
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("init aes cipher: %w", err)
 	}
@@ -35,9 +35,9 @@ func Encrypt(plainText string, key string, userData []byte) ([]byte, error) {
 	return cipherText, nil
 }
 
-func Decrypt(encryptedData []byte, key string, userData []byte) (string, error) {
+func Decrypt(encryptedData []byte, key []byte, userData []byte) (string, error) {
 	// инициализация aes
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("init aes cipher: %w", err)
 	}

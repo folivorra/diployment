@@ -29,10 +29,10 @@ type authService struct {
 	provider Provider
 	repo     UserRepository
 	authCfg  config.AuthConfig
-	key      string
+	key      []byte
 }
 
-func NewAuthService(provider Provider, repo UserRepository, authCfg config.AuthConfig, key string) *authService {
+func NewAuthService(provider Provider, repo UserRepository, authCfg config.AuthConfig, key []byte) *authService {
 	return &authService{
 		provider: provider,
 		repo:     repo,
