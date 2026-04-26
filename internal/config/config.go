@@ -22,6 +22,11 @@ type Config struct {
 	Postgres PostgresConfig
 	Auth     AuthConfig
 	GitHub   GitHubConfig
+	Webhook  WebhookConfig
+}
+
+type WebhookConfig struct {
+	URL string `env:"WEBHOOK_URL" env-required:"true"`
 }
 
 type HTTPConfig struct {

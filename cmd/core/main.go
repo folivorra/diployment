@@ -41,11 +41,14 @@ func main() {
 	}
 
 	userRepo := postgres.NewUserPostgresRepo(pool)
-	githubProvider := provider.NewGitHubProvider(cfg.GitHub)
+	projectRepo := postgres.NewProjectPostgresRepo(pool)
+	githubProvider := provider.NewGitHubProvider(cfg.GitHub, cfg.Webhook.URL)
 	repoService := service.NewRepoService(githubProvider, userRepo, cfg.MasterKey)
 	authService := service.NewAuthService(githubProvider, userRepo, cfg.Auth, cfg.MasterKey)
+	projectService := service.NewProjectService(projectRepo, githubProvider, userRepo, cfg.MasterKey)
 	repoHandler := handler.NewRepoHandler(repoService)
 	authHandler := handler.NewAuthHandler(authService)
+	projectHandler := handler.NewProjectHandler(projectService)
 
 	e := echo.New()
 
@@ -65,7 +68,9 @@ func main() {
 	api := e.Group("/api")
 	{
 		api.Use(authmddlwr.AuthMiddleware(cfg.Auth.JWTSecret)) // проверяет jwt токен и кладет user_id в контекст
-		api.GET("/repos", repoHandler.ListRepos)               // получаем список репозиториев пользователя
+
+		api.GET("/repos", repoHandler.ListRepos)           // получаем список репозиториев пользователя
+		api.POST("/project/import", projectHandler.Import) // импортируем репо в проект
 	}
 
 	log.Info("starting server", slog.String("address", cfg.HTTP.Address()), slog.Any("env_mode", cfg.Env))

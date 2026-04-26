@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 const (
 	githubUserInfoURL      = "https://api.github.com/user"
 	githubListUserReposURL = "https://api.github.com/user/repos?per_page=100"
+	githubCreateWebhookURL = "https://api.github.com/repos/%s/hooks"
 
 	githubAcceptContent = "application/vnd.github+json"
 	githubAPIVersion    = "2026-03-10"
@@ -26,31 +28,33 @@ type githubUser struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
-type GitHubProvider struct {
-	oauthCfg *oauth2.Config
+type gitHubProvider struct {
+	oauthCfg   *oauth2.Config
+	webhookURL string
 }
 
-func NewGitHubProvider(cfg config.GitHubConfig) *GitHubProvider {
-	return &GitHubProvider{
+func NewGitHubProvider(ghCfg config.GitHubConfig, webhookURL string) *gitHubProvider {
+	return &gitHubProvider{
 		oauthCfg: &oauth2.Config{
-			ClientID:     cfg.ClientID,
-			ClientSecret: cfg.ClientSecret,
-			RedirectURL:  cfg.RedirectURL,
+			ClientID:     ghCfg.ClientID,
+			ClientSecret: ghCfg.ClientSecret,
+			RedirectURL:  ghCfg.RedirectURL,
 			Endpoint:     github.Endpoint,
 			Scopes:       []string{"repo", "read:user"},
 		},
+		webhookURL: webhookURL,
 	}
 }
 
-func (g *GitHubProvider) AuthCodeURL(state string) string {
+func (g *gitHubProvider) AuthCodeURL(state string) string {
 	return g.oauthCfg.AuthCodeURL(state)
 }
 
-func (g *GitHubProvider) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
+func (g *gitHubProvider) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
 	return g.oauthCfg.Exchange(ctx, code)
 }
 
-func (g *GitHubProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (*model.User, error) {
+func (g *gitHubProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (*model.User, error) {
 	client := g.oauthCfg.Client(ctx, token)
 
 	resp, err := client.Get(githubUserInfoURL)
@@ -74,18 +78,12 @@ func (g *GitHubProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (
 	}, nil
 }
 
-func (g *GitHubProvider) ListUserRepos(ctx context.Context, ownerToken string) ([]*model.Repository, error) {
-	headers := &http.Header{
-		"Accept":               []string{githubAcceptContent},
-		"Authorization":        []string{"Bearer " + ownerToken},
-		"X-GitHub-Api-Version": []string{githubAPIVersion},
-	}
-
+func (g *gitHubProvider) ListUserRepos(ctx context.Context, token string) ([]*model.Repository, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubListUserReposURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header = *headers
+	req.Header = getHeaders(token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -102,4 +100,60 @@ func (g *GitHubProvider) ListUserRepos(ctx context.Context, ownerToken string) (
 	}
 
 	return repos, nil
+}
+
+func (g *gitHubProvider) CreateWebhook(ctx context.Context, token string, repoFullName string, webhookSecret string) (int, error) {
+	params := struct {
+		Name   string            `json:"name"`
+		Active bool              `json:"active"`
+		Events []string          `json:"events"`
+		Config map[string]string `json:"config"`
+	}{
+		Name:   "web",
+		Active: true,
+		Events: []string{"push"},
+		Config: map[string]string{
+			"url":          g.webhookURL,
+			"content_type": "json",
+			"secret":       webhookSecret,
+		},
+	}
+
+	reqBody, err := json.Marshal(params)
+	if err != nil {
+		return -1, fmt.Errorf("marshal request body: %w", err)
+	}
+
+	url := fmt.Sprintf(githubCreateWebhookURL, repoFullName)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(reqBody))
+	if err != nil {
+		return -1, fmt.Errorf("create request: %w", err)
+	}
+	req.Header = getHeaders(token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return -1, fmt.Errorf("do request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		return -1, fmt.Errorf("do request: status %s", resp.Status)
+	}
+
+	var webhookID struct {
+		ID int `json:"id"`
+	}
+	if err = json.NewDecoder(resp.Body).Decode(&webhookID); err != nil {
+		return -1, fmt.Errorf("decode response body: %w", err)
+	}
+
+	return webhookID.ID, nil
+}
+
+func getHeaders(token string) http.Header {
+	return http.Header{
+		"Accept":               []string{githubAcceptContent},
+		"Authorization":        []string{"Bearer " + token},
+		"X-GitHub-Api-Version": []string{githubAPIVersion},
+	}
 }

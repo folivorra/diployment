@@ -17,15 +17,17 @@ CREATE TABLE users (
 
 CREATE TABLE projects (
     -- уникальный ID проекта
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- foreign key на id пользователя из таблицы users, удаление пользователя означает удаление всех его проектов
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    -- название проекта
-    name TEXT NOT NULL,
-    -- ссылка на репозиторий для клонирования
-    repo_url TEXT NOT NULL,
-    -- команда сборки в контейнере, дефолт для приложений написанных на Go
-    build_command TEXT DEFAULT 'go build -o app',
+    -- полное имя репозитория на GitHub (owner/repo)
+    repo_full_name TEXT NOT NULL,
+    -- ссылка для git clone
+    clone_url TEXT NOT NULL,
+    -- ID вебхука на GitHub, нужен для удаления при отвязке проекта
+    webhook_id BIGINT,
+    -- зашифрованный секрет для валидации подписи входящих вебхуков
+    webhook_secret BYTEA,
     -- дата создания записи
     created_at TIMESTAMP DEFAULT NOW()
 );

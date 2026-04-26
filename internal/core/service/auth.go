@@ -48,12 +48,12 @@ func (a *authService) GetAuthCodeURL(state string) string {
 func (a *authService) Authenticate(ctx context.Context, code string) (string, error) {
 	token, err := a.provider.Exchange(ctx, code)
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrCodeExchange, err)
+		return "", fmt.Errorf("%w: exchange code: %w", ErrCodeExchange, err)
 	}
 
 	user, err := a.provider.GetUserInfo(ctx, token)
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrProviderAPI, err)
+		return "", fmt.Errorf("%w: get user info: %w", ErrProviderAPI, err)
 	}
 
 	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.key, []byte("USER-DATA")) // fixme константная юзер дата

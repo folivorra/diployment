@@ -7,10 +7,11 @@ import (
 )
 
 type Project struct {
-	ID           uuid.UUID `json:"id"`
-	UserID       uuid.UUID `json:"user_id"`
-	Name         string    `json:"name"`
-	RepoURL      string    `json:"repo_url"`
-	BuildCommand string    `json:"build_command"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID            uuid.UUID `json:"id"`
+	UserID        uuid.UUID `json:"user_id"`
+	RepoFullName  string    `json:"repo_full_name"`
+	CloneURL      string    `json:"clone_url"`
+	WebhookID     int       `json:"webhook_id"`
+	WebhookSecret []byte    `json:"-"`
+	CreatedAt     time.Time `json:"created_at"`
 }

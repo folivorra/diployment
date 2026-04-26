@@ -25,20 +25,21 @@ func NewProjectPostgresRepo(pool *pgxpool.Pool) *projectPostgresRepo {
 	}
 }
 
-// Create создает запись о проекте
+// Create создает запись о проекте.
 func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project) error {
 	query := `
-		INSERT INTO projects (user_id, name, repo_url, build_command)
-		VALUES ($1, $2, $3, $4);
+		INSERT INTO projects (user_id, repo_full_name, clone_url, webhook_id, webhook_secret)
+		VALUES ($1, $2, $3, $4, $5);
 	`
 
 	_, err := p.pool.Exec(
 		ctx,
 		query,
 		project.UserID,
-		project.Name,
-		project.RepoURL,
-		project.BuildCommand,
+		project.RepoFullName,
+		project.CloneURL,
+		project.WebhookID,
+		project.WebhookSecret,
 	)
 
 	if err != nil {
@@ -54,10 +55,10 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 	return nil
 }
 
-// GetByID возвращает запись о проекте по его идентификатору
+// GetByID возвращает запись о проекте по его идентификатору.
 func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Project, error) {
 	query := `
-		SELECT id, user_id, name, repo_url, build_command, created_at
+		SELECT id, user_id, repo_full_name, clone_url, webhook_id, webhook_secret, created_at
 		FROM projects
 		WHERE id = $1;
 	`
@@ -71,9 +72,10 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 	).Scan(
 		&project.ID,
 		&project.UserID,
-		&project.Name,
-		&project.RepoURL,
-		&project.BuildCommand,
+		&project.RepoFullName,
+		&project.CloneURL,
+		&project.WebhookID,
+		&project.WebhookSecret,
 		&project.CreatedAt,
 	)
 
@@ -87,10 +89,10 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 	return &project, nil
 }
 
-// ListByUserID возвращает список проектов по идентификатору пользователя
+// ListByUserID возвращает список проектов по идентификатору пользователя.
 func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Project, error) {
 	query := `
-		SELECT id, user_id, name, repo_url, build_command, created_at
+		SELECT id, user_id, repo_full_name, clone_url, webhook_id, webhook_secret, created_at
 		FROM projects
 		WHERE user_id = $1;
 	`
@@ -109,9 +111,10 @@ func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID
 		err := r.Scan(
 			&project.ID,
 			&project.UserID,
-			&project.Name,
-			&project.RepoURL,
-			&project.BuildCommand,
+			&project.RepoFullName,
+			&project.CloneURL,
+			&project.WebhookID,
+			&project.WebhookSecret,
 			&project.CreatedAt,
 		)
 		if err != nil {
