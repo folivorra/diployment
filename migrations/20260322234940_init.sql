@@ -22,6 +22,8 @@ CREATE TABLE projects (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     -- полное имя репозитория на GitHub (owner/repo)
     repo_full_name TEXT NOT NULL,
+    -- название ветки, которая будет собираться и деплоиться джобой
+    branch TEXT NOT NULL,
     -- ссылка для git clone
     clone_url TEXT NOT NULL,
     -- ID вебхука на GitHub, нужен для удаления при отвязке проекта

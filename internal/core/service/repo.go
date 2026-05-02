@@ -38,7 +38,7 @@ func (r *repoService) ListUserReposByID(ctx context.Context, userID *uuid.UUID) 
 		return nil, fmt.Errorf("decrypt user token: %w", err)
 	}
 
-	repos, err := r.lister.ListUserRepos(ctx, token)
+	repos, err := r.lister.ListUserRepos(ctx, string(token))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrProviderAPI, err)
 	}

@@ -29,10 +29,11 @@ type RepoOwnerGetter interface {
 type ImportProjectInput struct {
 	RepoFullName string `json:"repo_full_name"`
 	CloneURL     string `json:"clone_url"`
+	Branch       string `json:"branch"`
 }
 
 func (i ImportProjectInput) IsValid() bool {
-	return i.RepoFullName != "" && i.CloneURL != ""
+	return i.RepoFullName != "" && i.CloneURL != "" && i.Branch != ""
 }
 
 type projectService struct {
@@ -63,7 +64,7 @@ func (p *projectService) Import(ctx context.Context, ownerID *uuid.UUID, input I
 	}
 	webhookSecret := base64.StdEncoding.EncodeToString(secret)
 
-	wID, err := p.wc.CreateWebhook(ctx, decryptedToken, input.RepoFullName, webhookSecret)
+	wID, err := p.wc.CreateWebhook(ctx, string(decryptedToken), input.RepoFullName, webhookSecret)
 	if err != nil {
 		return fmt.Errorf("%w: create webhook on repo: %w", ErrProviderAPI, err)
 	}
@@ -76,6 +77,7 @@ func (p *projectService) Import(ctx context.Context, ownerID *uuid.UUID, input I
 	project := &model.Project{
 		UserID:        owner.ID,
 		RepoFullName:  input.RepoFullName,
+		Branch:        input.Branch,
 		CloneURL:      input.CloneURL,
 		WebhookID:     wID,
 		WebhookSecret: encryptedWebhookSecret,

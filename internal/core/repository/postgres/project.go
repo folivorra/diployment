@@ -28,8 +28,8 @@ func NewProjectPostgresRepo(pool *pgxpool.Pool) *projectPostgresRepo {
 // Create создает запись о проекте.
 func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project) error {
 	query := `
-		INSERT INTO projects (user_id, repo_full_name, clone_url, webhook_id, webhook_secret)
-		VALUES ($1, $2, $3, $4, $5);
+		INSERT INTO projects (user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret)
+		VALUES ($1, $2, $3, $4, $5, $6);
 	`
 
 	_, err := p.pool.Exec(
@@ -37,11 +37,11 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 		query,
 		project.UserID,
 		project.RepoFullName,
+		project.Branch,
 		project.CloneURL,
 		project.WebhookID,
 		project.WebhookSecret,
 	)
-
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -58,7 +58,7 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 // GetByID возвращает запись о проекте по его идентификатору.
 func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Project, error) {
 	query := `
-		SELECT id, user_id, repo_full_name, clone_url, webhook_id, webhook_secret, created_at
+		SELECT id, user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret, created_at
 		FROM projects
 		WHERE id = $1;
 	`
@@ -73,12 +73,12 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 		&project.ID,
 		&project.UserID,
 		&project.RepoFullName,
+		&project.Branch,
 		&project.CloneURL,
 		&project.WebhookID,
 		&project.WebhookSecret,
 		&project.CreatedAt,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, pgpool.ErrProjectNotFound
@@ -92,7 +92,7 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 // ListByUserID возвращает список проектов по идентификатору пользователя.
 func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Project, error) {
 	query := `
-		SELECT id, user_id, repo_full_name, clone_url, webhook_id, webhook_secret, created_at
+		SELECT id, user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret, created_at
 		FROM projects
 		WHERE user_id = $1;
 	`
@@ -112,6 +112,7 @@ func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID
 			&project.ID,
 			&project.UserID,
 			&project.RepoFullName,
+			&project.Branch,
 			&project.CloneURL,
 			&project.WebhookID,
 			&project.WebhookSecret,
@@ -123,10 +124,43 @@ func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID
 
 		projects = append(projects, &project)
 	}
-
 	if err := r.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration: %w", err)
 	}
 
 	return projects, nil
+}
+
+// GetByFullName возвращает запись о проекте по полному имени репозитория.
+func (p *projectPostgresRepo) GetByFullName(ctx context.Context, fullName string) (*model.Project, error) {
+	query := `
+		SELECT id, user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret, created_at
+		FROM projects
+		WHERE repo_full_name = $1;
+	`
+
+	var project model.Project
+
+	err := p.pool.QueryRow(
+		ctx,
+		query,
+		fullName,
+	).Scan(
+		&project.ID,
+		&project.UserID,
+		&project.RepoFullName,
+		&project.Branch,
+		&project.CloneURL,
+		&project.WebhookID,
+		&project.WebhookSecret,
+		&project.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, pgpool.ErrProjectNotFound
+		}
+		return nil, fmt.Errorf("get project by repo full name: %w", err)
+	}
+
+	return &project, nil
 }

@@ -10,6 +10,7 @@ type Project struct {
 	ID            uuid.UUID `json:"id"`
 	UserID        uuid.UUID `json:"user_id"`
 	RepoFullName  string    `json:"repo_full_name"`
+	Branch        string    `json:"branch"`
 	CloneURL      string    `json:"clone_url"`
 	WebhookID     int       `json:"webhook_id"`
 	WebhookSecret []byte    `json:"-"`

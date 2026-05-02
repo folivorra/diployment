@@ -35,23 +35,23 @@ func Encrypt(plainText string, key []byte, userData []byte) ([]byte, error) {
 	return cipherText, nil
 }
 
-func Decrypt(encryptedData []byte, key []byte, userData []byte) (string, error) {
+func Decrypt(encryptedData []byte, key []byte, userData []byte) ([]byte, error) {
 	// инициализация aes
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", fmt.Errorf("init aes cipher: %w", err)
+		return nil, fmt.Errorf("init aes cipher: %w", err)
 	}
 
 	// создание обертки над aes, которая добавляет логику gcm
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("init aes-gcm cipher: %w", err)
+		return nil, fmt.Errorf("init aes-gcm cipher: %w", err)
 	}
 
 	// проверка первых 12 байт, которые заложены под nonce
 	nonceSize := aesGCM.NonceSize()
 	if len(encryptedData) < nonceSize {
-		return "", fmt.Errorf("encrypted data is too short")
+		return nil, fmt.Errorf("encrypted data is too short")
 	}
 
 	// разделяем слайс
@@ -61,8 +61,8 @@ func Decrypt(encryptedData []byte, key []byte, userData []byte) (string, error) 
 	// расшифровка и проверка
 	plainText, err := aesGCM.Open(nil, nonce, cipherText, userData)
 	if err != nil {
-		return "", fmt.Errorf("decrypt cipher text: %w", err)
+		return nil, fmt.Errorf("decrypt cipher text: %w", err)
 	}
 
-	return string(plainText), nil
+	return plainText, nil
 }
