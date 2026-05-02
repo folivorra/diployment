@@ -50,13 +50,18 @@ type ProjectGetter interface {
 	GetByFullName(ctx context.Context, fullName string) (*model.Project, error)
 }
 
+type BuildEventPusher interface {
+	PublishBuildEvent(ctx context.Context, event model.BuildEvent) error
+}
+
 type handler struct {
 	pg  ProjectGetter
+	bp  BuildEventPusher
 	key []byte
 }
 
-func NewWebhookHandler(pg ProjectGetter, key []byte) *handler {
-	return &handler{pg: pg, key: key}
+func NewWebhookHandler(pg ProjectGetter, bp BuildEventPusher, key []byte) *handler {
+	return &handler{pg: pg, bp: bp, key: key}
 }
 
 // Webhook принимает запросы со стороны provider, проверяет подпись и собирает+отправляет событие в NATS.
@@ -116,7 +121,22 @@ func (h *handler) Webhook(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	}
 
-	slog.Info("BuildEvent сформирован и отправлен (заглушка)")
+	event := model.BuildEvent{
+		ProjectID:    project.ID,
+		RepoFullName: project.RepoFullName,
+		CloneURL:     project.CloneURL,
+		Branch:       project.Branch,
+		CommitSHA:    req.After,
+		CommitMsg:    req.HeadCommit.Message,
+	}
+	if err = h.bp.PublishBuildEvent(c.Request().Context(), event); err != nil {
+		slog.Error("publish build event",
+			slog.String("project_id", project.ID.String()),
+			slog.String("repo", req.Repository.FullName),
+			slog.String("error", err.Error()),
+		)
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
 
 	return c.NoContent(http.StatusOK)
 }

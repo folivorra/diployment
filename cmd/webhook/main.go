@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/folivorra/diployment/internal/config"
-	"github.com/folivorra/diployment/internal/core/repository/postgres"
+	natsconn "github.com/folivorra/diployment/internal/nats"
 	"github.com/folivorra/diployment/internal/pgpool"
+	"github.com/folivorra/diployment/internal/publisher/nats"
+	"github.com/folivorra/diployment/internal/repository/postgres"
 	"github.com/folivorra/diployment/internal/webhook"
 	"github.com/folivorra/diployment/pkg/logger"
 	"github.com/labstack/echo/v4"
@@ -36,8 +38,18 @@ func main() {
 		flog.Fatalf("cannot create pgx pool: %v", err)
 	}
 
+	conn, js, err := natsconn.NewConn(cfg.NATS.URL)
+	if err != nil {
+		flog.Fatalf("cannot connect nats: %v", err)
+	}
+	defer conn.Close()
+	if err := natsconn.SetupStreams(ctx, js); err != nil {
+		flog.Fatalf("cannot setup streams: %v", err)
+	}
+
+	natsPub := nats.NewNatsPublisher(js)
 	projectRepo := postgres.NewProjectPostgresRepo(pool)
-	handler := webhook.NewWebhookHandler(projectRepo, cfg.MasterKey)
+	handler := webhook.NewWebhookHandler(projectRepo, natsPub, cfg.MasterKey)
 
 	e := echo.New()
 

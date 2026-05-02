@@ -14,9 +14,9 @@ import (
 	"github.com/folivorra/diployment/internal/core/handler"
 	authmddlwr "github.com/folivorra/diployment/internal/core/handler/middleware"
 	"github.com/folivorra/diployment/internal/core/provider"
-	"github.com/folivorra/diployment/internal/core/repository/postgres"
 	"github.com/folivorra/diployment/internal/core/service"
 	"github.com/folivorra/diployment/internal/pgpool"
+	"github.com/folivorra/diployment/internal/repository/postgres"
 	"github.com/folivorra/diployment/pkg/logger"
 
 	"github.com/labstack/echo/v4"

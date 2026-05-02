@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/folivorra/diployment/internal/core/service"
@@ -48,7 +49,7 @@ func (a *authHandler) Login(c echo.Context) error {
 // Callback обменивает code на JWT токен и устанавливает его в куку.
 func (a *authHandler) Callback(c echo.Context) error {
 	if err := validateState(c); err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusUnauthorized, "state invalid")
 	}
 
 	code := c.QueryParam("code")
@@ -58,6 +59,7 @@ func (a *authHandler) Callback(c echo.Context) error {
 
 	jwtToken, err := a.svc.Authenticate(c.Request().Context(), code)
 	if err != nil {
+		slog.Error("err", slog.String("text", err.Error()))
 		switch {
 		case errors.Is(err, service.ErrCodeExchange):
 			return echo.NewHTTPError(http.StatusForbidden, "authorization code is invalid or expired")
