@@ -71,6 +71,11 @@ func (h *handler) Webhook(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
 
+	// обработка первого запроса на проверку вебхука со стороны провайдера
+	if c.Request().Header.Get("X-GitHub-Event") == "ping" {
+		return c.NoContent(http.StatusOK)
+	}
+
 	var req webhookRequest
 	if err = json.Unmarshal(body, &req); err != nil || !req.IsValid() {
 		return echo.NewHTTPError(http.StatusBadRequest)
