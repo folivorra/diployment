@@ -18,6 +18,7 @@ const (
 	githubUserInfoURL      = "https://api.github.com/user"
 	githubListUserReposURL = "https://api.github.com/user/repos?per_page=100"
 	githubCreateWebhookURL = "https://api.github.com/repos/%s/hooks"
+	githubDeleteWebhookURL = "https://api.github.com/repos/%s/hooks/%d"
 
 	githubAcceptContent = "application/vnd.github+json"
 	githubAPIVersion    = "2026-03-10"
@@ -148,6 +149,26 @@ func (g *gitHubProvider) CreateWebhook(ctx context.Context, token string, repoFu
 	}
 
 	return webhookID.ID, nil
+}
+
+func (g *gitHubProvider) DeleteWebhook(ctx context.Context, token string, repoFullName string, webhookID int) error {
+	url := fmt.Sprintf(githubDeleteWebhookURL, repoFullName, webhookID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header = getHeaders(token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("do request: status %s", resp.Status)
+	}
+
+	return nil
 }
 
 func getHeaders(token string) http.Header {

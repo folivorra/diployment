@@ -13,9 +13,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type UserRepository interface {
+type UserUpserter interface {
 	Upsert(ctx context.Context, user *model.User) (*uuid.UUID, error)
-	GetByID(ctx context.Context, id *uuid.UUID) (*model.User, error)
 }
 
 type Provider interface {
@@ -26,15 +25,15 @@ type Provider interface {
 
 type authService struct {
 	provider Provider
-	repo     UserRepository
+	uu       UserUpserter
 	authCfg  config.AuthConfig
 	key      []byte
 }
 
-func NewAuthService(provider Provider, repo UserRepository, authCfg config.AuthConfig, key []byte) *authService {
+func NewAuthService(provider Provider, repo UserUpserter, authCfg config.AuthConfig, key []byte) *authService {
 	return &authService{
 		provider: provider,
-		repo:     repo,
+		uu:       repo,
 		authCfg:  authCfg,
 		key:      key,
 	}
@@ -62,7 +61,7 @@ func (a *authService) Authenticate(ctx context.Context, code string) (string, er
 
 	user.EncryptedToken = encryptedToken
 
-	id, err := a.repo.Upsert(ctx, user)
+	id, err := a.uu.Upsert(ctx, user)
 	if err != nil {
 		return "", fmt.Errorf("save user information: %w", err)
 	}

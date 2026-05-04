@@ -12,14 +12,13 @@ import (
 	"github.com/google/uuid"
 )
 
-type ProjectRepository interface {
+type ProjectCreater interface {
 	Create(ctx context.Context, project *model.Project) error
-	GetByID(ctx context.Context, id uuid.UUID) (*model.Project, error)
-	ListByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Project, error)
 }
 
-type WebhookCreator interface {
+type WebhookManager interface {
 	CreateWebhook(ctx context.Context, token string, repoFullName string, webhookSecret string) (int, error)
+	DeleteWebhook(ctx context.Context, token string, repoFullName string, webhookID int) error
 }
 
 type RepoOwnerGetter interface {
@@ -37,14 +36,14 @@ func (i ImportProjectInput) IsValid() bool {
 }
 
 type projectService struct {
-	repo ProjectRepository
-	wc   WebhookCreator
-	og   RepoOwnerGetter
-	key  []byte
+	pc  ProjectCreater
+	wm  WebhookManager
+	og  RepoOwnerGetter
+	key []byte
 }
 
-func NewProjectService(repo ProjectRepository, wc WebhookCreator, og RepoOwnerGetter, key []byte) *projectService {
-	return &projectService{repo: repo, wc: wc, og: og, key: key}
+func NewProjectService(repo ProjectCreater, wm WebhookManager, og RepoOwnerGetter, key []byte) *projectService {
+	return &projectService{pc: repo, wm: wm, og: og, key: key}
 }
 
 func (p *projectService) Import(ctx context.Context, ownerID *uuid.UUID, input ImportProjectInput) error {
@@ -64,14 +63,15 @@ func (p *projectService) Import(ctx context.Context, ownerID *uuid.UUID, input I
 	}
 	webhookSecret := base64.StdEncoding.EncodeToString(secret)
 
-	wID, err := p.wc.CreateWebhook(ctx, string(decryptedToken), input.RepoFullName, webhookSecret)
+	wID, err := p.wm.CreateWebhook(ctx, string(decryptedToken), input.RepoFullName, webhookSecret)
 	if err != nil {
 		return fmt.Errorf("%w: create webhook on repo: %w", ErrProviderAPI, err)
 	}
 
 	encryptedWebhookSecret, err := aesgcm.Encrypt(webhookSecret, p.key, []byte("USER-DATA"))
 	if err != nil {
-		return fmt.Errorf("decrypt webhook secret: %w", err)
+		_ = p.wm.DeleteWebhook(ctx, string(decryptedToken), input.RepoFullName, wID)
+		return fmt.Errorf("encrypt webhook secret: %w", err)
 	}
 
 	project := &model.Project{
@@ -82,8 +82,9 @@ func (p *projectService) Import(ctx context.Context, ownerID *uuid.UUID, input I
 		WebhookID:     wID,
 		WebhookSecret: encryptedWebhookSecret,
 	}
-	if err = p.repo.Create(ctx, project); err != nil {
-		return err
+	if err = p.pc.Create(ctx, project); err != nil {
+		_ = p.wm.DeleteWebhook(ctx, string(decryptedToken), input.RepoFullName, wID)
+		return fmt.Errorf("create project: %w", err)
 	}
 
 	return nil
