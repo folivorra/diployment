@@ -7,11 +7,11 @@ import (
 
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/internal/pgpool"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

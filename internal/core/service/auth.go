@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
-
 	"github.com/folivorra/diployment/internal/config"
 	"github.com/folivorra/diployment/internal/model"
+	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
 	"github.com/folivorra/diployment/pkg/jwt"
 
 	"github.com/google/uuid"

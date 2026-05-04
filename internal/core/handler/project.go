@@ -8,9 +8,9 @@ import (
 
 	"github.com/folivorra/diployment/internal/core/service"
 	"github.com/folivorra/diployment/internal/pgpool"
-	"github.com/labstack/echo/v4"
 
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 type ProjectService interface {
