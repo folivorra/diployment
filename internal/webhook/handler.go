@@ -126,13 +126,18 @@ func (h *handler) Webhook(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	}
 
+	commitMsg := req.HeadCommit.Message
+	if commitMsg == "" {
+		commitMsg = "no message"
+	}
+
 	event := model.BuildEvent{
 		ProjectID:    project.ID,
 		RepoFullName: project.RepoFullName,
 		CloneURL:     project.CloneURL,
 		Branch:       project.Branch,
 		CommitSHA:    req.After,
-		CommitMsg:    req.HeadCommit.Message,
+		CommitMsg:    commitMsg,
 	}
 	if err = h.bp.PublishBuildEvent(c.Request().Context(), event); err != nil {
 		slog.Error("publish build event",

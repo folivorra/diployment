@@ -22,7 +22,7 @@ type WebhookManager interface {
 }
 
 type RepoOwnerGetter interface {
-	GetByID(ctx context.Context, id *uuid.UUID) (*model.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 }
 
 type ImportProjectInput struct {
@@ -46,7 +46,7 @@ func NewProjectService(repo ProjectCreater, wm WebhookManager, og RepoOwnerGette
 	return &projectService{pc: repo, wm: wm, og: og, key: key}
 }
 
-func (p *projectService) Import(ctx context.Context, ownerID *uuid.UUID, input ImportProjectInput) error {
+func (p *projectService) Import(ctx context.Context, ownerID uuid.UUID, input ImportProjectInput) error {
 	owner, err := p.og.GetByID(ctx, ownerID)
 	if err != nil {
 		return fmt.Errorf("get repo owner: %w", err)

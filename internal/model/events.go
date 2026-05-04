@@ -26,7 +26,7 @@ type JobStartedEvent struct {
 type Status string
 
 func (s Status) IsValid() bool {
-	return s == "success" || s == "failed"
+	return s == "success" || s == "failed" || s == "pending" || s == "running"
 }
 
 // JobFinishedEvent - jobs.finished (worker → coordinator, сборка завершена)

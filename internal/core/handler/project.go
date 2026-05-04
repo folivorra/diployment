@@ -7,14 +7,14 @@ import (
 	"net/http"
 
 	"github.com/folivorra/diployment/internal/core/service"
-	"github.com/folivorra/diployment/internal/pgpool"
+	"github.com/folivorra/diployment/internal/repository/postgres"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type ProjectService interface {
-	Import(ctx context.Context, userID *uuid.UUID, input service.ImportProjectInput) error
+	Import(ctx context.Context, userID uuid.UUID, input service.ImportProjectInput) error
 }
 
 type projectHandler struct {
@@ -28,8 +28,8 @@ func NewProjectHandler(srv ProjectService) *projectHandler {
 func (p *projectHandler) Import(c echo.Context) error {
 	rawOwnerID := c.Get("user_id")
 
-	ownerID, ok := rawOwnerID.(*uuid.UUID)
-	if !ok || ownerID == nil {
+	ownerID, ok := rawOwnerID.(uuid.UUID)
+	if !ok || ownerID == uuid.Nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "user id not found or empty")
 	}
 
@@ -44,7 +44,7 @@ func (p *projectHandler) Import(c echo.Context) error {
 		slog.Error("import project failed", slog.String("error", err.Error()))
 
 		switch {
-		case errors.Is(err, pgpool.ErrProjectAlreadyExist):
+		case errors.Is(err, postgres.ErrProjectAlreadyExist):
 			return echo.NewHTTPError(http.StatusConflict, "project already imported")
 		case errors.Is(err, service.ErrProviderAPI):
 			return echo.NewHTTPError(http.StatusBadGateway, "provider API is unavailable")

@@ -14,7 +14,7 @@ import (
 )
 
 type UserUpserter interface {
-	Upsert(ctx context.Context, user *model.User) (*uuid.UUID, error)
+	Upsert(ctx context.Context, user *model.User) (uuid.UUID, error)
 }
 
 type Provider interface {

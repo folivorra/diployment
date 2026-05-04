@@ -1,14 +1,56 @@
 services:
 
-#  app: # бизнес логика
-#    build: .
-#    depends_on:
-#      pg:
-#        condition: service_healthy
-#      nats:
-#        condition: service_healthy
-#      s3:
-#        condition: service_healthy
+  core: # основной API сервис: auth, проекты, репозитории
+    build:
+      context: .
+      args:
+        SERVICE: core
+    container_name: core
+    env_file:
+      - config/.core.env
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      pg:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    networks:
+      - backend
+
+  webhook: # принимает события от GitHub и публикует их в NATS
+    build:
+      context: .
+      args:
+        SERVICE: webhook
+    container_name: webhook
+    env_file:
+      - config/.webhook.env
+    ports:
+      - "127.0.0.1:2602:2602"
+    depends_on:
+      pg:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    networks:
+      - backend
+
+  coordinator: # читает события из NATS и управляет жизненным циклом джоб
+    build:
+      context: .
+      args:
+        SERVICE: coordinator
+    container_name: coordinator
+    env_file:
+      - config/.coordinator.env
+    depends_on:
+      pg:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    networks:
+      - backend
 
   pg: # хранит пользователей, проекты, историю сборок и метаданные
     image: postgres:14-alpine

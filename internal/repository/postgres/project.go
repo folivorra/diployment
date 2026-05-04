@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"github.com/folivorra/diployment/internal/model"
-	"github.com/folivorra/diployment/internal/pgpool"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
@@ -46,7 +44,7 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == pgerrcode.UniqueViolation {
-				return pgpool.ErrProjectAlreadyExist
+				return ErrProjectAlreadyExist
 			}
 		}
 		return fmt.Errorf("create project: %w", err)
@@ -81,7 +79,7 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, pgpool.ErrProjectNotFound
+			return nil, ErrProjectNotFound
 		}
 		return nil, fmt.Errorf("get project by id: %w", err)
 	}
@@ -157,7 +155,7 @@ func (p *projectPostgresRepo) GetByFullName(ctx context.Context, fullName string
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, pgpool.ErrProjectNotFound
+			return nil, ErrProjectNotFound
 		}
 		return nil, fmt.Errorf("get project by repo full name: %w", err)
 	}

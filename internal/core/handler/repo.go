@@ -13,7 +13,7 @@ import (
 )
 
 type RepoService interface {
-	ListUserReposByID(ctx context.Context, userID *uuid.UUID) ([]*model.Repository, error)
+	ListUserReposByID(ctx context.Context, userID uuid.UUID) ([]*model.Repository, error)
 }
 
 type repoHandler struct {
@@ -27,8 +27,8 @@ func NewRepoHandler(srv RepoService) *repoHandler {
 func (r *repoHandler) ListRepos(c echo.Context) error {
 	rawUserID := c.Get("user_id")
 
-	userID, ok := rawUserID.(*uuid.UUID)
-	if !ok || userID == nil {
+	userID, ok := rawUserID.(uuid.UUID)
+	if !ok || userID == uuid.Nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "user id not found or empty")
 	}
 

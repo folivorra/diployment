@@ -9,7 +9,7 @@ import (
 )
 
 // GenerateAccessToken генерирует новый JWT токен (hmac-sha256).
-func GenerateAccessToken(userID *uuid.UUID, secret []byte, ttl time.Duration) (string, error) {
+func GenerateAccessToken(userID uuid.UUID, secret []byte, ttl time.Duration) (string, error) {
 	now := time.Now().UTC()
 	exp := now.Add(ttl)
 
@@ -30,7 +30,7 @@ func GenerateAccessToken(userID *uuid.UUID, secret []byte, ttl time.Duration) (s
 }
 
 // ParseAccessToken проверяет алгоритм шифрования токена и вытаскивает из claims идентификатор пользователя.
-func ParseAccessToken(token string, secret string) (*uuid.UUID, error) {
+func ParseAccessToken(token string, secret string) (uuid.UUID, error) {
 	var claims jwt.RegisteredClaims
 	_, err := jwt.ParseWithClaims(token, &claims, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -39,13 +39,13 @@ func ParseAccessToken(token string, secret string) (*uuid.UUID, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("parsing token: %w", err)
+		return uuid.Nil, fmt.Errorf("parsing token: %w", err)
 	}
 
 	sub, err := uuid.Parse(claims.Subject)
 	if err != nil {
-		return nil, fmt.Errorf("parsing claims: %w", err)
+		return uuid.Nil, fmt.Errorf("parsing claims: %w", err)
 	}
 
-	return &sub, nil
+	return sub, nil
 }

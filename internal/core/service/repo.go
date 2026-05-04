@@ -11,7 +11,7 @@ import (
 )
 
 type UserGetter interface {
-	GetByID(ctx context.Context, id *uuid.UUID) (*model.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 }
 
 type RepoLister interface {
@@ -28,7 +28,7 @@ func NewRepoService(lister RepoLister, getter UserGetter, key []byte) *repoServi
 	return &repoService{lister: lister, getter: getter, key: key}
 }
 
-func (r *repoService) ListUserReposByID(ctx context.Context, userID *uuid.UUID) ([]*model.Repository, error) {
+func (r *repoService) ListUserReposByID(ctx context.Context, userID uuid.UUID) ([]*model.Repository, error) {
 	user, err := r.getter.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err

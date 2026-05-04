@@ -1,4 +1,4 @@
-package pgpool
+package postgres
 
 import "errors"
 
@@ -9,4 +9,7 @@ var (
 	// projects
 	ErrProjectAlreadyExist = errors.New("project already exists")
 	ErrProjectNotFound     = errors.New("project not found")
+
+	// jobs
+	ErrJobNotFound = errors.New("job not found")
 )
