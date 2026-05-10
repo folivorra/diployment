@@ -106,6 +106,29 @@ func MustGetCore(envFile string) *CoreConfig {
 	return cfg
 }
 
+type CoordinatorConfig struct {
+	Env Env `env:"APP_ENV" env-default:"local"`
+
+	Postgres PostgresConfig
+	NATS     NATSConfig
+}
+
+func MustGetCoordinator(envFile string) *CoordinatorConfig {
+	cfg := &CoordinatorConfig{}
+	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("cfg configure: %v", err)
+		}
+	}
+	if err := cleanenv.ReadEnv(cfg); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	if !cfg.Env.IsValid() {
+		log.Fatalf("cfg configure: APP_ENV invalid")
+	}
+	return cfg
+}
+
 func MustGetWebhook(envFile string) *WebhookConfig {
 	cfg := &WebhookConfig{}
 	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {

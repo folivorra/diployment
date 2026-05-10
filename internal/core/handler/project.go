@@ -41,7 +41,7 @@ func (p *projectHandler) Import(c echo.Context) error {
 
 	err = p.srv.Import(c.Request().Context(), ownerID, input)
 	if err != nil {
-		slog.Error("import project failed", slog.String("error", err.Error()))
+		slog.Error("import project failed", slog.Any("error", err))
 
 		switch {
 		case errors.Is(err, postgres.ErrProjectAlreadyExist):

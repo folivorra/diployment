@@ -9,34 +9,36 @@ import (
 )
 
 const (
-	StreamNameBuilds = "BUILDS"
-	StreamNameJobs   = "JOBS"
-	StreamNameLogs   = "LOGS"
+	StreamBuilds = "BUILDS"
+	StreamJobs   = "JOBS"
+	StreamLogs   = "LOGS"
 
 	SubjectBuildTriggered = "builds.triggered"
+	SubjectJobDispatch    = "jobs.dispatch"
 	SubjectJobStarted     = "jobs.started"
 	SubjectJobFinished    = "jobs.finished"
 	SubjectLogsLine       = "logs.line"
 )
 
+// SetupStreams инициализирует streams (topics) в NATS.
 func SetupStreams(ctx context.Context, js jetstream.JetStream) error {
 	streams := []jetstream.StreamConfig{
 		{
-			Name:      StreamNameBuilds,
+			Name:      StreamBuilds,
 			Subjects:  []string{SubjectBuildTriggered},
 			Retention: jetstream.WorkQueuePolicy,
 			Storage:   jetstream.FileStorage,
 			MaxAge:    24 * time.Hour,
 		},
 		{
-			Name:      StreamNameJobs,
-			Subjects:  []string{SubjectJobStarted, SubjectJobFinished},
+			Name:      StreamJobs,
+			Subjects:  []string{SubjectJobDispatch, SubjectJobStarted, SubjectJobFinished},
 			Retention: jetstream.WorkQueuePolicy,
 			Storage:   jetstream.FileStorage,
 			MaxAge:    24 * time.Hour,
 		},
 		{
-			Name:      StreamNameLogs,
+			Name:      StreamLogs,
 			Subjects:  []string{SubjectLogsLine},
 			Retention: jetstream.LimitsPolicy, // логи не удаляются после прочтения
 			Storage:   jetstream.FileStorage,

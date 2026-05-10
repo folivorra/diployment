@@ -25,11 +25,10 @@ go.work
 go.work.sum
 
 # Env file
-config/.minio.env
-config/.nats.env
-config/.pg.env
-config/.core.env
-config/.webhook.env
+config/*.env
 
 # Editor/IDE
 .idea/
+
+# claude code
+memory/

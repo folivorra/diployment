@@ -85,7 +85,7 @@ func (h *handler) Webhook(c echo.Context) error {
 	if err != nil {
 		slog.Error("get project by repo full name",
 			slog.String("repo", req.Repository.FullName),
-			slog.String("error", err.Error()),
+			slog.Any("error", err),
 		)
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
@@ -95,7 +95,7 @@ func (h *handler) Webhook(c echo.Context) error {
 		slog.Error("decrypt webhook secret",
 			slog.String("project_id", project.ID.String()),
 			slog.String("repo", req.Repository.FullName),
-			slog.String("error", err.Error()),
+			slog.Any("error", err),
 		)
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
@@ -143,7 +143,7 @@ func (h *handler) Webhook(c echo.Context) error {
 		slog.Error("publish build event",
 			slog.String("project_id", project.ID.String()),
 			slog.String("repo", req.Repository.FullName),
-			slog.String("error", err.Error()),
+			slog.Any("error", err),
 		)
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}

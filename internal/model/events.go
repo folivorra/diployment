@@ -6,6 +6,19 @@ import (
 	"github.com/google/uuid"
 )
 
+type Status string
+
+const (
+	StatusSuccess Status = "success"
+	StatusFailed  Status = "failed"
+	StatusPending Status = "pending"
+	StatusRunning Status = "running"
+)
+
+func (s Status) IsValid() bool {
+	return s == "success" || s == "failed" || s == "pending" || s == "running"
+}
+
 // BuildEvent - builds.triggered (webhook → coordinator)
 type BuildEvent struct {
 	ProjectID    uuid.UUID
@@ -21,12 +34,6 @@ type JobStartedEvent struct {
 	JobID     uuid.UUID
 	ProjectID uuid.UUID
 	WorkerID  string
-}
-
-type Status string
-
-func (s Status) IsValid() bool {
-	return s == "success" || s == "failed" || s == "pending" || s == "running"
 }
 
 // JobFinishedEvent - jobs.finished (worker → coordinator, сборка завершена)

@@ -9,7 +9,9 @@ import (
 type Job struct {
 	ID         uuid.UUID
 	ProjectID  uuid.UUID
-	Status     Status
+	Status     Status // pending, running, success, failed
+	Branch     string
+	CloneURL   string
 	CommitSHA  string
 	CommitMsg  string
 	LogURL     string
