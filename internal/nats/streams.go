@@ -11,13 +11,11 @@ import (
 const (
 	StreamBuilds = "BUILDS"
 	StreamJobs   = "JOBS"
-	StreamLogs   = "LOGS"
 
 	SubjectBuildTriggered = "builds.triggered"
 	SubjectJobDispatch    = "jobs.dispatch"
 	SubjectJobStarted     = "jobs.started"
 	SubjectJobFinished    = "jobs.finished"
-	SubjectLogsLine       = "logs.line"
 )
 
 // SetupStreams инициализирует streams (topics) в NATS.
@@ -36,14 +34,6 @@ func SetupStreams(ctx context.Context, js jetstream.JetStream) error {
 			Retention: jetstream.WorkQueuePolicy,
 			Storage:   jetstream.FileStorage,
 			MaxAge:    24 * time.Hour,
-		},
-		{
-			Name:      StreamLogs,
-			Subjects:  []string{SubjectLogsLine},
-			Retention: jetstream.LimitsPolicy, // логи не удаляются после прочтения
-			Storage:   jetstream.FileStorage,
-			MaxAge:    7 * 24 * time.Hour,
-			MaxMsgs:   1_000_000,
 		},
 	}
 

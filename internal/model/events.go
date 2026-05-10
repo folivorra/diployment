@@ -1,8 +1,6 @@
 package model
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -44,9 +42,3 @@ type JobFinishedEvent struct {
 	Error     string // if Status == success → error == ""
 }
 
-// LogLineEvent - logs.line (worker → log streamer)
-type LogLineEvent struct {
-	JobID     uuid.UUID
-	Line      string
-	Timestamp time.Time
-}
