@@ -80,7 +80,7 @@ func (a *authHandler) Callback(c echo.Context) error {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	return c.Redirect(http.StatusTemporaryRedirect, "http://127.0.0.1:3000/dashboard") // fixme добавить фронт кфг
+	return c.Redirect(http.StatusTemporaryRedirect, "http://localhost:3000/dashboard") // fixme добавить фронт кфг
 }
 
 // generateState возвращает рандомно сгенерированную строку в base64 для использования как state.
