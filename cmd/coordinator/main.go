@@ -40,7 +40,7 @@ func main() {
 	jobRepo := postgres.NewJobPostgresRepo(pool)
 	publisher := publishernats.NewNatsPublisher(js)
 	svc := coordinator.NewCoordService(jobRepo, publisher)
-	consumer := consumernats.NewNatsConsumer(js, svc)
+	consumer := consumernats.NewNatsDurableConsumer(js, svc)
 
 	log.Info("starting coordinator")
 
@@ -51,7 +51,7 @@ func main() {
 	}()
 
 	go func() {
-		if err := consumer.StartConsumeJobs(ctx); err != nil {
+		if err := consumer.StartConsumeJobsStatus(ctx); err != nil {
 			slog.Error("jobs consumer stopped", slog.Any("error", err))
 		}
 	}()

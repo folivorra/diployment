@@ -19,20 +19,28 @@ func NewNatsPublisher(js jetstream.JetStream) *natsPublisher {
 	return &natsPublisher{js: js}
 }
 
-func (n *natsPublisher) PublishBuildEvent(ctx context.Context, event model.BuildEvent) error {
-	return n.publish(ctx, nats.SubjectBuildTriggered, event)
+func (p *natsPublisher) PublishBuildEvent(ctx context.Context, event model.BuildEvent) error {
+	return p.publish(ctx, nats.SubjectBuildTriggered, event)
 }
 
-func (n *natsPublisher) PublishJobDispatch(ctx context.Context, job model.Job) error {
-	return n.publish(ctx, nats.SubjectJobDispatch, job)
+func (p *natsPublisher) PublishJobDispatch(ctx context.Context, job model.Job) error {
+	return p.publish(ctx, nats.SubjectJobDispatch, job)
 }
 
-func (n *natsPublisher) publish(ctx context.Context, subject string, payload any) error {
+func (p *natsPublisher) PublishJobStarted(ctx context.Context, event model.JobStartedEvent) error {
+	return p.publish(ctx, nats.SubjectJobStarted, event)
+}
+
+func (p *natsPublisher) PublishJobFinished(ctx context.Context, event model.JobFinishedEvent) error {
+	return p.publish(ctx, nats.SubjectJobFinished, event)
+}
+
+func (p *natsPublisher) publish(ctx context.Context, subject string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal event to json: %w", err)
 	}
-	_, err = n.js.Publish(ctx, subject, data)
+	_, err = p.js.Publish(ctx, subject, data)
 	if err != nil {
 		return fmt.Errorf("publish to %s: %w", subject, err)
 	}

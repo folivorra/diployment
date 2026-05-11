@@ -13,7 +13,7 @@ import (
 )
 
 type CoreConfig struct {
-	Env Env `env:"APP_ENV" env-default:"local"` // local, dev
+	Env Env `env:"APP_ENV" env-default:"local"`
 
 	MasterKey []byte `env:"MASTER_KEY" env-required:"true"`
 
@@ -25,13 +25,27 @@ type CoreConfig struct {
 }
 
 type WebhookConfig struct {
-	Env Env `env:"APP_ENV" env-default:"local"` // local, dev
+	Env Env `env:"APP_ENV" env-default:"local"`
 
 	MasterKey []byte `env:"MASTER_KEY" env-required:"true"`
 
 	HTTP     HTTPConfig
 	Postgres PostgresConfig
 	NATS     NATSConfig
+}
+
+type CoordinatorConfig struct {
+	Env Env `env:"APP_ENV" env-default:"local"`
+
+	Postgres PostgresConfig
+	NATS     NATSConfig
+}
+
+type WorkerConfig struct {
+	Env Env `env:"APP_ENV" env-default:"local"`
+
+	NATS  NATSConfig
+	MinIO MinIOConfig
 }
 
 type Env string
@@ -86,8 +100,31 @@ func decodeBase64Key(encoded []byte) ([]byte, error) {
 	return key, nil
 }
 
-func MustGetCore(envFile string) *CoreConfig {
-	cfg := &CoreConfig{}
+type MinIOConfig struct {
+	Endpoint  string `env:"MINIO_ENDPOINT" env-required:"true"`
+	AccessKey string `env:"MINIO_ACCESS_KEY" env-required:"true"`
+	SecretKey string `env:"MINIO_SECRET_KEY" env-required:"true"`
+	UseSSL    bool   `env:"MINIO_USE_SSL" env-default:"false"`
+}
+
+func MustGetWorker(envFile string) *WorkerConfig {
+	cfg := &WorkerConfig{}
+	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("cfg configure: %v", err)
+		}
+	}
+	if err := cleanenv.ReadEnv(cfg); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	if !cfg.Env.IsValid() {
+		log.Fatalf("cfg configure: APP_ENV invalid")
+	}
+	return cfg
+}
+
+func MustGetWebhook(envFile string) *WebhookConfig {
+	cfg := &WebhookConfig{}
 	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			log.Fatalf("cfg configure: %v", err)
@@ -106,13 +143,6 @@ func MustGetCore(envFile string) *CoreConfig {
 	return cfg
 }
 
-type CoordinatorConfig struct {
-	Env Env `env:"APP_ENV" env-default:"local"`
-
-	Postgres PostgresConfig
-	NATS     NATSConfig
-}
-
 func MustGetCoordinator(envFile string) *CoordinatorConfig {
 	cfg := &CoordinatorConfig{}
 	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
@@ -129,8 +159,8 @@ func MustGetCoordinator(envFile string) *CoordinatorConfig {
 	return cfg
 }
 
-func MustGetWebhook(envFile string) *WebhookConfig {
-	cfg := &WebhookConfig{}
+func MustGetCore(envFile string) *CoreConfig {
+	cfg := &CoreConfig{}
 	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			log.Fatalf("cfg configure: %v", err)
