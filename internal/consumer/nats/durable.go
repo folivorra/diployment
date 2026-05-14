@@ -68,6 +68,7 @@ func (c *natsDurableConsumer) start(ctx context.Context, stream string, durable 
 		Durable:        durable,
 		FilterSubjects: filterSubs,
 		AckPolicy:      jetstream.AckExplicitPolicy,
+		MaxDeliver:     MaxDeliverAttempts,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert nats consumer: %w", err)

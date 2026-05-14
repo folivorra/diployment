@@ -9,12 +9,14 @@ import (
 	"os"
 
 	"github.com/folivorra/diployment/internal/model"
+	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
 	"github.com/folivorra/diployment/pkg/retry"
 
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/image"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/minio/minio-go/v7"
 	"github.com/moby/go-archive"
 	"github.com/moby/moby/client"
@@ -30,14 +32,20 @@ const (
 type builder struct {
 	docker *client.Client
 	s3     *minio.Client
+	key    []byte
 }
 
-func NewBuilder(d *client.Client, s3 *minio.Client) *builder {
-	return &builder{docker: d, s3: s3}
+func NewBuilder(d *client.Client, s3 *minio.Client, masterKey []byte) *builder {
+	return &builder{docker: d, s3: s3, key: masterKey}
 }
 
 // Build выполняет полный воркфлоу: подтягивает репозиторий, собирает проект и сохраняет артефактов.
 func (b *builder) Build(ctx context.Context, job model.Job) error {
+	token, err := aesgcm.Decrypt(job.EncryptedToken, b.key, []byte("USER-DATA"))
+	if err != nil {
+		return fmt.Errorf("decrypt clone token: %w", err)
+	}
+
 	// создаём временную директорию для исходников, удаляем после завершения
 	tmpDir, err := os.MkdirTemp("", TmpDirName)
 	if err != nil {
@@ -45,22 +53,24 @@ func (b *builder) Build(ctx context.Context, job model.Job) error {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
+	cloneOpts := &git.CloneOptions{
+		URL:           job.CloneURL,
+		ReferenceName: plumbing.NewBranchReferenceName(job.Branch),
+		SingleBranch:  true,
+		Depth:         1,
+		Auth:          &githttp.BasicAuth{Username: "x-token", Password: string(token)},
+	}
+
 	// клонируем только нужную ветку без истории, ретрай на случай сетевых проблем
 	err = retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
 		// чистим перед каждой попыткой на случай частичного клона
 		if err := os.RemoveAll(tmpDir); err != nil {
 			return err
 		}
-		if _, err := os.MkdirTemp("", TmpDirName); err != nil {
+		if err := os.MkdirAll(tmpDir, 0o700); err != nil {
 			return err
 		}
-
-		_, err := git.PlainCloneContext(ctx, tmpDir, false, &git.CloneOptions{
-			URL:           job.CloneURL,
-			ReferenceName: plumbing.NewBranchReferenceName(job.Branch),
-			SingleBranch:  true,
-			Depth:         1,
-		})
+		_, err := git.PlainCloneContext(ctx, tmpDir, false, cloneOpts)
 		return err
 	})
 	if err != nil {

@@ -19,12 +19,13 @@ func (s Status) IsValid() bool {
 
 // BuildEvent - builds.triggered (webhook → coordinator)
 type BuildEvent struct {
-	ProjectID    uuid.UUID
-	RepoFullName string
-	CloneURL     string
-	Branch       string
-	CommitSHA    string
-	CommitMsg    string
+	ProjectID      uuid.UUID
+	RepoFullName   string
+	CloneURL       string
+	Branch         string
+	CommitSHA      string
+	CommitMsg      string
+	EncryptedToken []byte // provider access token
 }
 
 // JobStartedEvent - jobs.started (worker → coordinator, воркер взял задачу)
@@ -41,4 +42,3 @@ type JobFinishedEvent struct {
 	Status    Status // success, failed
 	Error     string // if Status == success → error == ""
 }
-

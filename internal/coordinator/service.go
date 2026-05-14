@@ -30,11 +30,12 @@ func NewCoordService(repo JobRepository, jd JobDispatсher) *coordinatorService 
 // HandleBuildTriggered обрабатывает событие builds.triggered и отправляет событие jobs.dispatch.
 func (c *coordinatorService) HandleBuildTriggered(ctx context.Context, event model.BuildEvent) error {
 	job := model.Job{
-		ProjectID: event.ProjectID,
-		Branch:    event.Branch,
-		CloneURL:  event.CloneURL,
-		CommitSHA: event.CommitSHA,
-		CommitMsg: event.CommitMsg,
+		ProjectID:      event.ProjectID,
+		Branch:         event.Branch,
+		CloneURL:       event.CloneURL,
+		EncryptedToken: event.EncryptedToken,
+		CommitSHA:      event.CommitSHA,
+		CommitMsg:      event.CommitMsg,
 	}
 
 	id, err := c.repo.Create(ctx, &job)

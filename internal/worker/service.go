@@ -29,7 +29,6 @@ func NewWorkerService(id string, b Builder, pub JobStatusPublisher) *workerServi
 }
 
 // ExecuteJob оркестрирует жизненный цикл джобы: уведомляет о старте, запускает сборку и публикует итог.
-// Возвращает ошибку только если не удалось уведомить о старте - в этом случае консьюмер делает Nak.
 func (s *workerService) ExecuteJob(ctx context.Context, job model.Job) error {
 	if err := retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
 		return s.pub.PublishJobStarted(ctx, model.JobStartedEvent{
@@ -58,7 +57,7 @@ func (s *workerService) ExecuteJob(ctx context.Context, job model.Job) error {
 			Error:     errMsg,
 		})
 	}); err != nil {
-		slog.Error("publish job finish failed", slog.Any("error", err))
+		return fmt.Errorf("publish job finished: %w", err)
 	}
 
 	return nil

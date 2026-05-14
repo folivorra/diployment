@@ -31,7 +31,7 @@ func (c *natsQueueWorkerConsumer) StartConsumeJobsDispatch(ctx context.Context) 
 		Durable:       DurableWorkers,
 		FilterSubject: nats.SubjectJobDispatch,
 		AckPolicy:     jetstream.AckExplicitPolicy,
-		DeliverGroup:  "workers", // queue worker ON
+		MaxDeliver:    MaxDeliverAttempts,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert nats consumer: %w", err)

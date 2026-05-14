@@ -9,14 +9,13 @@ import (
 
 	"github.com/folivorra/diployment/internal/config"
 	consumernats "github.com/folivorra/diployment/internal/consumer/nats"
+	"github.com/folivorra/diployment/internal/minio"
 	natsconn "github.com/folivorra/diployment/internal/nats"
 	publishernats "github.com/folivorra/diployment/internal/publisher/nats"
 	"github.com/folivorra/diployment/internal/worker"
 	"github.com/folivorra/diployment/pkg/logger"
 
 	"github.com/google/uuid"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/moby/moby/client"
 )
 
@@ -38,12 +37,12 @@ func main() {
 	}
 	defer func() { _ = dockerClient.Close() }()
 
-	minioClient, err := minio.New(cfg.MinIO.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, ""),
-		Secure: cfg.MinIO.UseSSL,
-	})
+	minioClient, err := minio.NewMinioClient(cfg.MinIO)
 	if err != nil {
 		flog.Fatalf("cannot create minio client: %v", err)
+	}
+	if err := minio.InitBucket(ctx, minioClient, worker.BucketArtifacts); err != nil {
+		flog.Fatalf("cannot init minio bucket: %v", err)
 	}
 
 	conn, js, err := natsconn.NewConn(cfg.NATS.URL)
@@ -53,7 +52,7 @@ func main() {
 	defer conn.Close()
 
 	publisher := publishernats.NewNatsPublisher(js)
-	builder := worker.NewBuilder(dockerClient, minioClient)
+	builder := worker.NewBuilder(dockerClient, minioClient, cfg.MasterKey)
 	svc := worker.NewWorkerService(workerID, builder, publisher)
 	consumer := consumernats.NewNatsQueueWorkerConsumer(js, svc)
 

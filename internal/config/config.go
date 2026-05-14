@@ -44,6 +44,8 @@ type CoordinatorConfig struct {
 type WorkerConfig struct {
 	Env Env `env:"APP_ENV" env-default:"local"`
 
+	MasterKey []byte `env:"MASTER_KEY" env-required:"true"`
+
 	NATS  NATSConfig
 	MinIO MinIOConfig
 }
@@ -115,6 +117,10 @@ func MustGetWorker(envFile string) *WorkerConfig {
 		}
 	}
 	if err := cleanenv.ReadEnv(cfg); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	var err error
+	if cfg.MasterKey, err = decodeBase64Key(cfg.MasterKey); err != nil {
 		log.Fatalf("cfg configure: %v", err)
 	}
 	if !cfg.Env.IsValid() {

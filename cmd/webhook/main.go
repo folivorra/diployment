@@ -50,7 +50,8 @@ func main() {
 
 	natsPub := nats.NewNatsPublisher(js)
 	projectRepo := postgres.NewProjectPostgresRepo(pool)
-	handler := webhook.NewWebhookHandler(projectRepo, natsPub, cfg.MasterKey)
+	userRepo := postgres.NewUserPostgresRepo(pool)
+	handler := webhook.NewWebhookHandler(projectRepo, natsPub, userRepo, cfg.MasterKey)
 
 	e := echo.New()
 
@@ -58,8 +59,6 @@ func main() {
 	e.Use(middleware.Recover()) // чтобы сервер не падал на панике, а писал ошибку в логи
 
 	e.POST("/webhook", handler.Webhook)
-
-	log.Info("starting server", slog.String("address", cfg.HTTP.Address()), slog.Any("env_mode", cfg.Env))
 
 	go func() {
 		if err := e.Start(cfg.HTTP.Address()); err != nil && !errors.Is(err, http.ErrServerClosed) {

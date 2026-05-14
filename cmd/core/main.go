@@ -73,8 +73,6 @@ func main() {
 		api.POST("/project/import", projectHandler.Import) // импортируем репо в проект
 	}
 
-	log.Info("starting server", slog.String("address", cfg.HTTP.Address()), slog.Any("env_mode", cfg.Env))
-
 	go func() {
 		if err := e.Start(cfg.HTTP.Address()); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			e.Logger.Errorf("server failed to start: %v", slog.Any("error", err))

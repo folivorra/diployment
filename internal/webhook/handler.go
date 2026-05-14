@@ -13,7 +13,7 @@ import (
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
 	"github.com/folivorra/diployment/pkg/crypto/hmac"
-
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -54,14 +54,19 @@ type BuildEventPusher interface {
 	PublishBuildEvent(ctx context.Context, event model.BuildEvent) error
 }
 
+type UserGetter interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
+}
+
 type handler struct {
 	pg  ProjectGetter
 	bp  BuildEventPusher
+	ug  UserGetter
 	key []byte
 }
 
-func NewWebhookHandler(pg ProjectGetter, bp BuildEventPusher, key []byte) *handler {
-	return &handler{pg: pg, bp: bp, key: key}
+func NewWebhookHandler(pg ProjectGetter, bp BuildEventPusher, ug UserGetter, key []byte) *handler {
+	return &handler{pg: pg, bp: bp, ug: ug, key: key}
 }
 
 // Webhook принимает запросы со стороны provider, проверяет подпись и собирает+отправляет событие в NATS.
@@ -131,13 +136,23 @@ func (h *handler) Webhook(c echo.Context) error {
 		commitMsg = "no message"
 	}
 
+	user, err := h.ug.GetByID(c.Request().Context(), project.UserID)
+	if err != nil {
+		slog.Error("get project owner",
+			slog.String("project_id", project.ID.String()),
+			slog.Any("error", err),
+		)
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
 	event := model.BuildEvent{
-		ProjectID:    project.ID,
-		RepoFullName: project.RepoFullName,
-		CloneURL:     project.CloneURL,
-		Branch:       project.Branch,
-		CommitSHA:    req.After,
-		CommitMsg:    commitMsg,
+		ProjectID:      project.ID,
+		RepoFullName:   project.RepoFullName,
+		CloneURL:       project.CloneURL,
+		Branch:         project.Branch,
+		CommitSHA:      req.After,
+		CommitMsg:      commitMsg,
+		EncryptedToken: user.EncryptedToken,
 	}
 	if err = h.bp.PublishBuildEvent(c.Request().Context(), event); err != nil {
 		slog.Error("publish build event",

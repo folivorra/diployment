@@ -12,7 +12,8 @@ const (
 	DurableCoordinatorJobs   = "coordinator-jobs"
 	DurableWorkers           = "workers"
 
-	FetchTimeout = 2 * time.Second
+	FetchTimeout       = 2 * time.Second
+	MaxDeliverAttempts = 5
 )
 
 var ErrUnmarshaling = errors.New("unmarshaling failed")
