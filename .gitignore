@@ -30,5 +30,10 @@ config/*.env
 # Editor/IDE
 .idea/
 
+# frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+
 # claude code
-memory/
+.claude/

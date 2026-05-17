@@ -1,5 +1,18 @@
 services:
 
+  frontend: # Next.js UI
+    build:
+      context: ./frontend
+    container_name: frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - core
+    networks:
+      - backend
+
   core: # основной API сервис: auth, проекты, репозитории
     build:
       context: .
