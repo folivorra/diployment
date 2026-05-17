@@ -40,7 +40,7 @@ func main() {
 	jobRepo := postgres.NewJobPostgresRepo(pool)
 	publisher := publishernats.NewNatsPublisher(js)
 	svc := coordinator.NewCoordService(jobRepo, publisher)
-	consumer := consumernats.NewNatsDurableConsumer(js, svc)
+	consumer := consumernats.NewNatsCoordinatorConsumer(js, svc)
 
 	log.Info("starting coordinator")
 

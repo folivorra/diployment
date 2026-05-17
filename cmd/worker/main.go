@@ -54,7 +54,7 @@ func main() {
 	publisher := publishernats.NewNatsPublisher(js)
 	builder := worker.NewBuilder(dockerClient, minioClient, cfg.MasterKey)
 	svc := worker.NewWorkerService(workerID, builder, publisher)
-	consumer := consumernats.NewNatsQueueWorkerConsumer(js, svc)
+	consumer := consumernats.NewNatsWorkerConsumer(js, svc)
 
 	if err := consumer.StartConsumeJobsDispatch(ctx); err != nil {
 		slog.Error("worker consumer stopped", slog.Any("error", err))
