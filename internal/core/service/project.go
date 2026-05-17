@@ -16,6 +16,10 @@ type ProjectCreater interface {
 	Create(ctx context.Context, project *model.Project) error
 }
 
+type ProjectLister interface {
+	ListByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Project, error)
+}
+
 type WebhookManager interface {
 	CreateWebhook(ctx context.Context, token string, repoFullName string, webhookSecret string) (int, error)
 	DeleteWebhook(ctx context.Context, token string, repoFullName string, webhookID int) error
@@ -37,15 +41,22 @@ func (i ImportProjectInput) IsValid() bool {
 
 type projectService struct {
 	pc  ProjectCreater
+	pl  ProjectLister
 	wm  WebhookManager
 	og  RepoOwnerGetter
 	key []byte
 }
 
-func NewProjectService(repo ProjectCreater, wm WebhookManager, og RepoOwnerGetter, key []byte) *projectService {
-	return &projectService{pc: repo, wm: wm, og: og, key: key}
+func NewProjectService(pc ProjectCreater, pl ProjectLister, wm WebhookManager, og RepoOwnerGetter, key []byte) *projectService {
+	return &projectService{pc: pc, pl: pl, wm: wm, og: og, key: key}
 }
 
+// List возвращает список проектов текущего пользователя.
+func (p *projectService) List(ctx context.Context, userID uuid.UUID) ([]*model.Project, error) {
+	return p.pl.ListByUserID(ctx, userID)
+}
+
+// Import импортирует репозиторий GitHub как проект и регистрирует вебхук на стороне провайдера.
 func (p *projectService) Import(ctx context.Context, ownerID uuid.UUID, input ImportProjectInput) error {
 	owner, err := p.og.GetByID(ctx, ownerID)
 	if err != nil {

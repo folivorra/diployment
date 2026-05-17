@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/folivorra/diployment/internal/core/service"
+	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/internal/repository/postgres"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 
 type ProjectService interface {
 	Import(ctx context.Context, userID uuid.UUID, input service.ImportProjectInput) error
+	List(ctx context.Context, userID uuid.UUID) ([]*model.Project, error)
 }
 
 type projectHandler struct {
@@ -25,10 +27,9 @@ func NewProjectHandler(srv ProjectService) *projectHandler {
 	return &projectHandler{srv: srv}
 }
 
+// Import импортирует репозиторий GitHub как проект и регистрирует вебхук на стороне провайдера.
 func (p *projectHandler) Import(c echo.Context) error {
-	rawOwnerID := c.Get("user_id")
-
-	ownerID, ok := rawOwnerID.(uuid.UUID)
+	ownerID, ok := c.Get("user_id").(uuid.UUID)
 	if !ok || ownerID == uuid.Nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "user id not found or empty")
 	}
@@ -54,4 +55,19 @@ func (p *projectHandler) Import(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusCreated)
+}
+
+// List возвращает список проектов текущего пользователя.
+func (p *projectHandler) List(c echo.Context) error {
+	userID, ok := c.Get("user_id").(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user id not found or empty")
+	}
+
+	projects, err := p.srv.List(c.Request().Context(), userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
+	}
+
+	return c.JSON(http.StatusOK, projects)
 }

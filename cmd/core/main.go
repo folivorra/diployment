@@ -42,22 +42,29 @@ func main() {
 
 	userRepo := postgres.NewUserPostgresRepo(pool)
 	projectRepo := postgres.NewProjectPostgresRepo(pool)
+	jobRepo := postgres.NewJobPostgresRepo(pool)
 	githubProvider := provider.NewGitHubProvider(cfg.GitHub, cfg.Webhook.URL)
 	repoService := service.NewRepoService(githubProvider, userRepo, cfg.MasterKey)
 	authService := service.NewAuthService(githubProvider, userRepo, cfg.Auth, cfg.MasterKey)
-	projectService := service.NewProjectService(projectRepo, githubProvider, userRepo, cfg.MasterKey)
+	userService := service.NewUserService(userRepo)
+	projectService := service.NewProjectService(projectRepo, projectRepo, githubProvider, userRepo, cfg.MasterKey)
+	jobService := service.NewJobService(jobRepo, projectRepo)
 	repoHandler := handler.NewRepoHandler(repoService)
 	authHandler := handler.NewAuthHandler(authService)
+	userHandler := handler.NewUserHandler(userService)
 	projectHandler := handler.NewProjectHandler(projectService)
+	jobHandler := handler.NewJobHandler(jobService)
 
 	e := echo.New()
 
-	e.Use(slogecho.New(log))                               // чтобы каждый HTTP-запрос логировался в slog
-	e.Use(middleware.Recover())                            // чтобы сервер не падал на панике, а писал ошибку в логи
-	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{ // для корректной работы фронт-бэк
-		AllowOrigins:     []string{"http://localhost:3000"},
-		AllowCredentials: true, // важно для работы с куками!
-	}))
+	e.Use(slogecho.New(log))    // чтобы каждый HTTP-запрос логировался в slog
+	e.Use(middleware.Recover()) // чтобы сервер не падал на панике, а писал ошибку в логи
+	e.Use(middleware.CORSWithConfig(
+		middleware.CORSConfig{ // для корректной работы фронт-бэк
+			AllowOrigins:     []string{"http://localhost:3000"},
+			AllowCredentials: true, // важно для работы с куками!
+		},
+	))
 
 	auth := e.Group("/auth")
 	{
@@ -69,8 +76,11 @@ func main() {
 	{
 		api.Use(authmddlwr.AuthMiddleware(cfg.Auth.JWTSecret)) // проверяет jwt токен и кладет user_id в контекст
 
-		api.GET("/repos", repoHandler.ListRepos)           // получаем список репозиториев пользователя
-		api.POST("/project/import", projectHandler.Import) // импортируем репо в проект
+		api.GET("/me", userHandler.Me)                          // информация о текущем пользователе
+		api.GET("/repos", repoHandler.ListRepos)                // список репозиториев пользователя на GitHub
+		api.GET("/projects", projectHandler.List)               // список проектов пользователя
+		api.POST("/projects/import", projectHandler.Import)     // импортировать репозиторий как проект
+		api.GET("/projects/:id/jobs", jobHandler.ListByProject) // история джоб проекта
 	}
 
 	go func() {

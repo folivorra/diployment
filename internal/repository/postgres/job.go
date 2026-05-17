@@ -41,6 +41,51 @@ func (j *jobPostgresRepo) Create(ctx context.Context, job *model.Job) (uuid.UUID
 	return id, nil
 }
 
+// ListByProjectID возвращает список джоб по идентификатору проекта.
+func (j *jobPostgresRepo) ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]*model.Job, error) {
+	query := `
+		SELECT id, project_id, status, commit_sha, commit_msg, log_url, created_at, finished_at
+		FROM jobs
+		WHERE project_id = $1
+		ORDER BY created_at DESC;
+	`
+
+	rows, err := j.pool.Query(ctx, query, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list jobs by project: %w", err)
+	}
+	defer rows.Close()
+
+	jobs := make([]*model.Job, 0)
+	for rows.Next() {
+		var job model.Job
+		var logURL *string
+
+		if err := rows.Scan(
+			&job.ID,
+			&job.ProjectID,
+			&job.Status,
+			&job.CommitSHA,
+			&job.CommitMsg,
+			&logURL,
+			&job.CreatedAt,
+			&job.FinishedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan job: %w", err)
+		}
+
+		if logURL != nil {
+			job.LogURL = *logURL
+		}
+		jobs = append(jobs, &job)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration: %w", err)
+	}
+
+	return jobs, nil
+}
+
 // UpdateState обновляет состояние в записи о джобе.
 func (j *jobPostgresRepo) UpdateState(ctx context.Context, id uuid.UUID, status model.Status, finishedAt *time.Time) error {
 	query := `
