@@ -24,6 +24,7 @@ func NewRepoHandler(srv RepoService) *repoHandler {
 	return &repoHandler{srv: srv}
 }
 
+// ListRepos возвращает список репозиториев из провайдер-хаба пользователя.
 func (r *repoHandler) ListRepos(c echo.Context) error {
 	rawUserID := c.Get("user_id")
 

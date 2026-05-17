@@ -25,7 +25,6 @@ func NewJobService(jobs JobsLister, projects ProjectGetter) *jobService {
 	return &jobService{jobs: jobs, projects: projects}
 }
 
-// ListByProject возвращает список джоб проекта, предварительно проверяя, что проект принадлежит пользователю.
 func (s *jobService) ListByProject(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]*model.Job, error) {
 	project, err := s.projects.GetByID(ctx, projectID)
 	if err != nil {

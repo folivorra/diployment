@@ -51,12 +51,10 @@ func NewProjectService(pc ProjectCreater, pl ProjectLister, wm WebhookManager, o
 	return &projectService{pc: pc, pl: pl, wm: wm, og: og, key: key}
 }
 
-// List возвращает список проектов текущего пользователя.
 func (p *projectService) List(ctx context.Context, userID uuid.UUID) ([]*model.Project, error) {
 	return p.pl.ListByUserID(ctx, userID)
 }
 
-// Import импортирует репозиторий GitHub как проект и регистрирует вебхук на стороне провайдера.
 func (p *projectService) Import(ctx context.Context, ownerID uuid.UUID, input ImportProjectInput) error {
 	owner, err := p.og.GetByID(ctx, ownerID)
 	if err != nil {

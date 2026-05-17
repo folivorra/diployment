@@ -73,9 +73,8 @@ func main() {
 	}
 
 	api := e.Group("/api")
+	api.Use(authmddlwr.AuthMiddleware(cfg.Auth.JWTSecret)) // проверяет jwt токен и кладет user_id в контекст
 	{
-		api.Use(authmddlwr.AuthMiddleware(cfg.Auth.JWTSecret)) // проверяет jwt токен и кладет user_id в контекст
-
 		api.GET("/me", userHandler.Me)                          // информация о текущем пользователе
 		api.GET("/repos", repoHandler.ListRepos)                // список репозиториев пользователя на GitHub
 		api.GET("/projects", projectHandler.List)               // список проектов пользователя
