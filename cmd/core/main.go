@@ -15,8 +15,10 @@ import (
 	authmddlwr "github.com/folivorra/diployment/internal/core/handler/middleware"
 	"github.com/folivorra/diployment/internal/core/provider"
 	"github.com/folivorra/diployment/internal/core/service"
+	natsconn "github.com/folivorra/diployment/internal/nats"
 	"github.com/folivorra/diployment/internal/pgpool"
 	"github.com/folivorra/diployment/internal/repository/postgres"
+	subscribernats "github.com/folivorra/diployment/internal/subscriber/nats"
 	"github.com/folivorra/diployment/pkg/logger"
 
 	"github.com/labstack/echo/v4"
@@ -40,6 +42,12 @@ func main() {
 		flog.Fatalf("cannot create pgx pool: %v", err)
 	}
 
+	conn, js, err := natsconn.NewConn(cfg.NATS.URL)
+	if err != nil {
+		flog.Fatalf("cannot connect to nats: %v", err)
+	}
+	defer conn.Close()
+
 	userRepo := postgres.NewUserPostgresRepo(pool)
 	projectRepo := postgres.NewProjectPostgresRepo(pool)
 	jobRepo := postgres.NewJobPostgresRepo(pool)
@@ -48,12 +56,13 @@ func main() {
 	authService := service.NewAuthService(githubProvider, userRepo, cfg.Auth, cfg.MasterKey)
 	userService := service.NewUserService(userRepo)
 	projectService := service.NewProjectService(projectRepo, projectRepo, githubProvider, userRepo, cfg.MasterKey)
+	jobSubscriber := subscribernats.NewSubscriberNats(js)
 	jobService := service.NewJobService(jobRepo, projectRepo)
 	repoHandler := handler.NewRepoHandler(repoService)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 	projectHandler := handler.NewProjectHandler(projectService)
-	jobHandler := handler.NewJobHandler(jobService)
+	jobHandler := handler.NewJobHandler(jobService, jobSubscriber)
 
 	e := echo.New()
 
@@ -76,10 +85,12 @@ func main() {
 	api.Use(authmddlwr.AuthMiddleware(cfg.Auth.JWTSecret)) // проверяет jwt токен и кладет user_id в контекст
 	{
 		api.GET("/me", userHandler.Me)                          // информация о текущем пользователе
-		api.GET("/repos", repoHandler.ListRepos)                // список репозиториев пользователя на GitHub
+		api.GET("/repos", repoHandler.ListRepos)                // список репозиториев пользователя
+		api.GET("/repos/branches", repoHandler.ListBranches)    // список веток репозитория на GitHub
 		api.GET("/projects", projectHandler.List)               // список проектов пользователя
 		api.POST("/projects/import", projectHandler.Import)     // импортировать репозиторий как проект
 		api.GET("/projects/:id/jobs", jobHandler.ListByProject) // история джоб проекта
+		api.GET("/jobs/:id/events", jobHandler.Events)          // SSE стрим статусов джобы
 	}
 
 	go func() {

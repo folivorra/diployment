@@ -35,6 +35,10 @@ func (p *natsPublisher) PublishJobFinished(ctx context.Context, event model.JobF
 	return p.publish(ctx, nats.SubjectJobFinished, event)
 }
 
+func (p *natsPublisher) PublishJobNotify(ctx context.Context, event model.JobNotifyEvent) error {
+	return p.publish(ctx, nats.JobNotifySubject(event.JobID), event)
+}
+
 func (p *natsPublisher) publish(ctx context.Context, subject string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {

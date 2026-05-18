@@ -16,6 +16,7 @@ type UserGetter interface {
 
 type RepoLister interface {
 	ListUserRepos(ctx context.Context, ownerToken string) ([]*model.Repository, error)
+	ListRepoBranches(ctx context.Context, token string, repoFullName string) ([]string, error)
 }
 
 type repoService struct {
@@ -45,4 +46,23 @@ func (r *repoService) ListUserReposByID(ctx context.Context, userID uuid.UUID) (
 	}
 
 	return repos, nil
+}
+
+func (r *repoService) ListRepoBranchesByID(ctx context.Context, userID uuid.UUID, repoFullName string) ([]string, error) {
+	user, err := r.getter.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := aesgcm.Decrypt(user.EncryptedToken, r.key, []byte("USER-DATA"))
+	if err != nil {
+		return nil, fmt.Errorf("decrypt user token: %w", err)
+	}
+
+	branches, err := r.lister.ListRepoBranches(ctx, string(token), repoFullName)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrProviderAPI, err)
+	}
+
+	return branches, nil
 }

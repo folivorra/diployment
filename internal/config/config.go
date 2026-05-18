@@ -22,6 +22,7 @@ type CoreConfig struct {
 	Auth     AuthConfig
 	GitHub   GitHubConfig
 	Webhook  WebhookServiceConfig
+	NATS     NATSConfig
 }
 
 type WebhookConfig struct {

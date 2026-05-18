@@ -8,8 +8,9 @@ import (
 	"github.com/google/uuid"
 )
 
-type JobsLister interface {
+type JobViewer interface {
 	ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]*model.Job, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*model.Job, error)
 }
 
 type ProjectGetter interface {
@@ -17,11 +18,11 @@ type ProjectGetter interface {
 }
 
 type jobService struct {
-	jobs     JobsLister
+	jobs     JobViewer
 	projects ProjectGetter
 }
 
-func NewJobService(jobs JobsLister, projects ProjectGetter) *jobService {
+func NewJobService(jobs JobViewer, projects ProjectGetter) *jobService {
 	return &jobService{jobs: jobs, projects: projects}
 }
 
@@ -36,4 +37,22 @@ func (s *jobService) ListByProject(ctx context.Context, userID uuid.UUID, projec
 	}
 
 	return s.jobs.ListByProjectID(ctx, projectID)
+}
+
+func (s *jobService) GetByID(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*model.Job, error) {
+	job, err := s.jobs.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	project, err := s.projects.GetByID(ctx, job.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+
+	if project.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	return job, nil
 }

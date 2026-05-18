@@ -14,13 +14,18 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiFetch<Job[]>(`/api/projects/${id}/jobs`)
-      .then((j) => setJobs(j ?? []))
-      .catch((err) => {
-        if (err.status === 401 || err.status === 400) router.replace('/')
-        if (err.status === 403 || err.status === 404) router.replace('/dashboard')
-      })
-      .finally(() => setLoading(false))
+    const fetchJobs = () =>
+      apiFetch<Job[]>(`/api/projects/${id}/jobs`)
+        .then((j) => setJobs(j ?? []))
+        .catch((err) => {
+          if (err.status === 401 || err.status === 400) router.replace('/')
+          if (err.status === 403 || err.status === 404) router.replace('/dashboard')
+        })
+        .finally(() => setLoading(false))
+
+    fetchJobs()
+    const interval = setInterval(fetchJobs, 5000)
+    return () => clearInterval(interval)
   }, [id, router])
 
   if (loading) {
@@ -53,7 +58,11 @@ export default function JobsPage() {
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {jobs.map((job) => (
-                <tr key={job.id} className="bg-zinc-950 hover:bg-zinc-900 transition-colors">
+                <tr
+                  key={job.id}
+                  className="cursor-pointer bg-zinc-950 transition-colors hover:bg-zinc-900"
+                  onClick={() => router.push(`/projects/${id}/jobs/${job.id}`)}
+                >
                   <td className="px-5 py-3">
                     <StatusBadge status={job.status} />
                   </td>

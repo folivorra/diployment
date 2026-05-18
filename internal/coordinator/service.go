@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/folivorra/diployment/internal/model"
@@ -18,13 +19,18 @@ type JobDispatсher interface {
 	PublishJobDispatch(ctx context.Context, event model.Job) error
 }
 
+type JobNotifier interface {
+	PublishJobNotify(ctx context.Context, event model.JobNotifyEvent) error
+}
+
 type coordinatorService struct {
 	repo JobRepository
 	jd   JobDispatсher
+	jn   JobNotifier
 }
 
-func NewCoordService(repo JobRepository, jd JobDispatсher) *coordinatorService {
-	return &coordinatorService{repo: repo, jd: jd}
+func NewCoordService(repo JobRepository, jd JobDispatсher, jn JobNotifier) *coordinatorService {
+	return &coordinatorService{repo: repo, jd: jd, jn: jn}
 }
 
 // HandleBuildTriggered обрабатывает событие builds.triggered и отправляет событие jobs.dispatch.
@@ -49,10 +55,39 @@ func (c *coordinatorService) HandleBuildTriggered(ctx context.Context, event mod
 
 // HandleJobStarted обрабатывает событие jobs.started.
 func (c *coordinatorService) HandleJobStarted(ctx context.Context, event model.JobStartedEvent) error {
-	return c.repo.UpdateState(ctx, event.JobID, model.StatusRunning, nil)
+	if err := c.repo.UpdateState(ctx, event.JobID, model.StatusRunning, nil); err != nil {
+		return err
+	}
+
+	if err := c.jn.PublishJobNotify(ctx, model.JobNotifyEvent{
+		JobID:  event.JobID,
+		Status: model.StatusRunning,
+	}); err != nil {
+		slog.Error("publish job notify",
+			slog.String("job_id", event.JobID.String()),
+			slog.Any("error", err),
+		)
+	}
+
+	return nil
 }
 
 // HandleJobFinished обрабатывает событие jobs.finished.
 func (c *coordinatorService) HandleJobFinished(ctx context.Context, event model.JobFinishedEvent) error {
-	return c.repo.UpdateState(ctx, event.JobID, event.Status, new(time.Now()))
+	if err := c.repo.UpdateState(ctx, event.JobID, event.Status, new(time.Now())); err != nil {
+		return err
+	}
+
+	if err := c.jn.PublishJobNotify(ctx, model.JobNotifyEvent{
+		JobID:  event.JobID,
+		Status: event.Status,
+		Error:  event.Error,
+	}); err != nil {
+		slog.Error("publish job notify",
+			slog.String("job_id", event.JobID.String()),
+			slog.Any("error", err),
+		)
+	}
+
+	return nil
 }

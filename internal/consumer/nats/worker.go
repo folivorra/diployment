@@ -5,6 +5,7 @@ import (
 
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/internal/nats"
+	"github.com/folivorra/diployment/pkg/decode"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -25,10 +26,11 @@ func NewNatsWorkerConsumer(js jetstream.JetStream, executor JobExecutor) *natsWo
 func (c *natsWorkerConsumer) StartConsumeJobsDispatch(ctx context.Context) error {
 	return consume(ctx, c.js, nats.StreamJobs, DurableWorkers, []string{nats.SubjectJobDispatch},
 		func(msg jetstream.Msg) error {
-			job, err := unmarshalMsgIntoEvent[model.Job](msg.Data())
+			job, err := decode.UnmarshalMsgIntoEvent[model.Job](msg.Data())
 			if err != nil {
 				return err
 			}
 			return c.executor.ExecuteJob(ctx, job)
-		})
+		},
+	)
 }

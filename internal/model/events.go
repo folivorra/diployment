@@ -42,3 +42,9 @@ type JobFinishedEvent struct {
 	Status    Status // success, failed
 	Error     string // if Status == success → error == ""
 }
+
+type JobNotifyEvent struct {
+	JobID  uuid.UUID
+	Status Status // success, failed, pending, running
+	Error  string // if Status != failed → error == ""
+}

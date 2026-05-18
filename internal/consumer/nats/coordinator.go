@@ -5,6 +5,7 @@ import (
 
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/internal/nats"
+	"github.com/folivorra/diployment/pkg/decode"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -27,12 +28,13 @@ func NewNatsCoordinatorConsumer(js jetstream.JetStream, mh MsgHandler) *natsCoor
 func (c *natsCoordinatorConsumer) StartConsumeBuilds(ctx context.Context) error {
 	return consume(ctx, c.js, nats.StreamBuilds, DurableCoordinatorBuilds, []string{nats.SubjectBuildTriggered},
 		func(msg jetstream.Msg) error {
-			event, err := unmarshalMsgIntoEvent[model.BuildEvent](msg.Data())
+			event, err := decode.UnmarshalMsgIntoEvent[model.BuildEvent](msg.Data())
 			if err != nil {
 				return err
 			}
 			return c.eh.HandleBuildTriggered(ctx, event)
-		})
+		},
+	)
 }
 
 func (c *natsCoordinatorConsumer) StartConsumeJobsStatus(ctx context.Context) error {
@@ -40,13 +42,13 @@ func (c *natsCoordinatorConsumer) StartConsumeJobsStatus(ctx context.Context) er
 		func(msg jetstream.Msg) error {
 			switch msg.Subject() {
 			case nats.SubjectJobStarted:
-				event, err := unmarshalMsgIntoEvent[model.JobStartedEvent](msg.Data())
+				event, err := decode.UnmarshalMsgIntoEvent[model.JobStartedEvent](msg.Data())
 				if err != nil {
 					return err
 				}
 				return c.eh.HandleJobStarted(ctx, event)
 			case nats.SubjectJobFinished:
-				event, err := unmarshalMsgIntoEvent[model.JobFinishedEvent](msg.Data())
+				event, err := decode.UnmarshalMsgIntoEvent[model.JobFinishedEvent](msg.Data())
 				if err != nil {
 					return err
 				}

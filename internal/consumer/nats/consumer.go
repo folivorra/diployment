@@ -2,12 +2,12 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/folivorra/diployment/pkg/decode"
 	natsio "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -20,17 +20,6 @@ const (
 	FetchTimeout       = 2 * time.Second
 	MaxDeliverAttempts = 5
 )
-
-var ErrUnmarshaling = errors.New("unmarshaling failed")
-
-// unmarshalMsgIntoEvent десериализует сообщение в тип события(T).
-func unmarshalMsgIntoEvent[T any](rawMsg []byte) (T, error) {
-	var event T
-	if err := json.Unmarshal(rawMsg, &event); err != nil {
-		return event, fmt.Errorf("%w: %w", ErrUnmarshaling, err)
-	}
-	return event, nil
-}
 
 func consume(ctx context.Context, js jetstream.JetStream, stream, durable string, filterSubs []string, handle func(jetstream.Msg) error) error {
 	consumer, err := js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
@@ -62,7 +51,7 @@ func consume(ctx context.Context, js jetstream.JetStream, stream, durable string
 			}
 
 			if err := handle(msg); err != nil {
-				if errors.Is(err, ErrUnmarshaling) {
+				if errors.Is(err, decode.ErrUnmarshaling) {
 					slog.Error("unmarshal msg into event", slog.Any("error", err))
 				} else {
 					slog.Error("handle event failed",

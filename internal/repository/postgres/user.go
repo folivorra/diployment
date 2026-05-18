@@ -60,7 +60,7 @@ func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Us
 
 	var user model.User
 
-	err := u.pool.QueryRow(
+	if err := u.pool.QueryRow(
 		ctx,
 		query,
 		id,
@@ -70,9 +70,7 @@ func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Us
 		&user.AvatarURL,
 		&user.EncryptedToken,
 		&user.CreatedAt,
-	)
-
-	if err != nil {
+	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}

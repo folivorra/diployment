@@ -2,11 +2,14 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/folivorra/diployment/internal/model"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -109,4 +112,42 @@ func (j *jobPostgresRepo) UpdateState(ctx context.Context, id uuid.UUID, status 
 	}
 
 	return nil
+}
+
+// GetByID возвращает запись о джобе по ее идентификатору.
+func (j *jobPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Job, error) {
+	query := `
+		SELECT id, project_id, status, commit_sha, commit_msg, log_url, created_at, finished_at
+		FROM jobs
+		WHERE id = $1;
+	`
+
+	var job model.Job
+	var logURL *string
+
+	if err := j.pool.QueryRow(
+		ctx,
+		query,
+		id,
+	).Scan(
+		&job.ID,
+		&job.ProjectID,
+		&job.Status,
+		&job.CommitSHA,
+		&job.CommitMsg,
+		&logURL,
+		&job.CreatedAt,
+		&job.FinishedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrJobNotFound
+		}
+		return nil, fmt.Errorf("get job: %w", err)
+	}
+
+	if logURL != nil {
+		job.LogURL = *logURL
+	}
+
+	return &job, nil
 }

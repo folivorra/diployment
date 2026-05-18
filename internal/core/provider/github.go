@@ -17,12 +17,17 @@ import (
 const (
 	githubUserInfoURL      = "https://api.github.com/user"
 	githubListUserReposURL = "https://api.github.com/user/repos?per_page=100"
+	githubListBranchesURL  = "https://api.github.com/repos/%s/branches"
 	githubCreateWebhookURL = "https://api.github.com/repos/%s/hooks"
 	githubDeleteWebhookURL = "https://api.github.com/repos/%s/hooks/%d"
 
 	githubAcceptContent = "application/vnd.github+json"
 	githubAPIVersion    = "2026-03-10"
 )
+
+type githubBranch struct {
+	Name string `json:"name"`
+}
 
 type githubUser struct {
 	ID        int    `json:"id"`
@@ -101,6 +106,35 @@ func (g *gitHubProvider) ListUserRepos(ctx context.Context, token string) ([]*mo
 	}
 
 	return repos, nil
+}
+
+func (g *gitHubProvider) ListRepoBranches(ctx context.Context, token string, repoFullName string) ([]string, error) {
+	url := fmt.Sprintf(githubListBranchesURL, repoFullName)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header = getHeaders(token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("do request: status %s", resp.Status)
+	}
+
+	var raw []githubBranch
+	if err = json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("decode response body: %w", err)
+	}
+
+	names := make([]string, len(raw))
+	for i, b := range raw {
+		names[i] = b.Name
+	}
+	return names, nil
 }
 
 func (g *gitHubProvider) CreateWebhook(ctx context.Context, token string, repoFullName string, webhookSecret string) (int, error) {
