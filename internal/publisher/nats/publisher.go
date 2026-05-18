@@ -7,7 +7,6 @@ import (
 
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/internal/nats"
-
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -37,6 +36,10 @@ func (p *natsPublisher) PublishJobFinished(ctx context.Context, event model.JobF
 
 func (p *natsPublisher) PublishJobNotify(ctx context.Context, event model.JobNotifyEvent) error {
 	return p.publish(ctx, nats.JobNotifySubject(event.JobID), event)
+}
+
+func (p *natsPublisher) PublishJobLogLine(ctx context.Context, logLine model.JobLogLine) error {
+	return p.publish(ctx, nats.JobLogSubject(logLine.JobID), logLine)
 }
 
 func (p *natsPublisher) publish(ctx context.Context, subject string, payload any) error {

@@ -36,6 +36,9 @@ func main() {
 		flog.Fatalf("cannot connect to nats: %v", err)
 	}
 	defer conn.Close()
+	if err := natsconn.SetupStreams(ctx, js); err != nil {
+		flog.Fatalf("cannot setup streams: %v", err)
+	}
 
 	jobRepo := postgres.NewJobPostgresRepo(pool)
 	publisher := publishernats.NewNatsPublisher(js)

@@ -5,15 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 
+	"github.com/docker/docker/api/types/build"
+	"github.com/docker/docker/api/types/image"
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
 	"github.com/folivorra/diployment/pkg/retry"
-
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/image"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -24,34 +24,53 @@ import (
 
 const (
 	BucketArtifacts = "artifacts"
-	ContentTypeXTar = "application/x-tar"
-	TmpDirName      = "builds"
-	UnknownSize     = -1
+	BucketLogs      = "logs"
+
+	ContentTypeXTar      = "application/x-tar"
+	ContentTypeTextPlain = "text/plain"
+
+	TmpDirName        = "builds"
+	TmpLogNamePattern = "%s.log"
+
+	UnknownSize = -1
 )
+
+type LogPublisher interface {
+	PublishJobLogLine(ctx context.Context, logLine model.JobLogLine) error
+}
 
 type builder struct {
 	docker *client.Client
 	s3     *minio.Client
+	l      LogPublisher
 	key    []byte
 }
 
-func NewBuilder(d *client.Client, s3 *minio.Client, masterKey []byte) *builder {
-	return &builder{docker: d, s3: s3, key: masterKey}
+func NewBuilder(d *client.Client, s3 *minio.Client, l LogPublisher, masterKey []byte) *builder {
+	return &builder{docker: d, s3: s3, l: l, key: masterKey}
 }
 
 // Build выполняет полный воркфлоу: подтягивает репозиторий, собирает проект и сохраняет артефактов.
-func (b *builder) Build(ctx context.Context, job model.Job) error {
+func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 	token, err := aesgcm.Decrypt(job.EncryptedToken, b.key, []byte("USER-DATA"))
 	if err != nil {
-		return fmt.Errorf("decrypt clone token: %w", err)
+		return "", fmt.Errorf("decrypt clone token: %w", err)
 	}
 
 	// создаём временную директорию для исходников, удаляем после завершения
 	tmpDir, err := os.MkdirTemp("", TmpDirName)
 	if err != nil {
-		return fmt.Errorf("create tmp dir: %w", err)
+		return "", fmt.Errorf("create tmp dir: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	// создаём файл для накопления лога сборки - пишем на диск, а не в память, чтобы не словить OOM
+	logKey := fmt.Sprintf(TmpLogNamePattern, job.ID.String())
+	logFile, err := os.CreateTemp(tmpDir, logKey)
+	if err != nil {
+		return "", fmt.Errorf("create tmp log file: %w", err)
+	}
+	defer func() { _ = logFile.Close() }()
 
 	cloneOpts := &git.CloneOptions{
 		URL:           job.CloneURL,
@@ -74,13 +93,13 @@ func (b *builder) Build(ctx context.Context, job model.Job) error {
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("git clone: %w", err)
+		return "", fmt.Errorf("git clone: %w", err)
 	}
 
 	// упаковываем директорию в tar, docker daemon принимает build context именно так
 	tar, err := archive.TarWithOptions(tmpDir, &archive.TarOptions{})
 	if err != nil {
-		return fmt.Errorf("tar build context: %w", err)
+		return "", fmt.Errorf("tar build context: %w", err)
 	}
 	defer func() { _ = tar.Close() }()
 
@@ -92,23 +111,44 @@ func (b *builder) Build(ctx context.Context, job model.Job) error {
 		Remove:     true,
 	})
 	if err != nil {
-		return fmt.Errorf("image build: %w", err)
+		return "", fmt.Errorf("image build: %w", err)
 	}
 	defer func() { _ = bresp.Body.Close() }()
 
 	// читаем вывод сборки, без этого daemon не завершит сборку
 	// каждая строка это JSON, проверяем на наличие ошибки сборки
+	// лог пишем в файл и пушим в стрим
 	scanner := bufio.NewScanner(bresp.Body)
+	writer := bufio.NewWriter(logFile)
 	for scanner.Scan() {
 		var msg struct {
-			Error string `json:"error"`
+			Stream string `json:"stream"`
+			Error  string `json:"error"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err == nil && msg.Error != "" {
-			return fmt.Errorf("docker build: %s", msg.Error)
+			return "", fmt.Errorf("docker build: %s", msg.Error)
+		}
+
+		_, err = writer.Write([]byte(msg.Stream))
+		if err != nil {
+			return "", fmt.Errorf("print log line into file: %w", err)
+		}
+
+		if err := b.l.PublishJobLogLine(ctx, model.JobLogLine{
+			JobID: job.ID,
+			Line:  msg.Stream,
+		}); err != nil {
+			slog.Warn("failed to pub log line",
+				slog.String("job_id", job.ID.String()),
+				slog.Any("error", err),
+			)
 		}
 	}
+	if err := writer.Flush(); err != nil {
+		return "", fmt.Errorf("flush last bytes: %w", err)
+	}
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read build output: %w", err)
+		return "", fmt.Errorf("read build output: %w", err)
 	}
 
 	// экспортируем образ и стримим в MinIO, ретрай на случай инфраструктурных проблем
@@ -126,7 +166,37 @@ func (b *builder) Build(ctx context.Context, job model.Job) error {
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("upload artifact: %w", err)
+		return "", fmt.Errorf("upload artifact: %w", err)
+	}
+
+	// перематываем файл и загружаем лог в MinIO
+	// некритично, если не вышло, logKey обнуляем, чтобы координатор не записал в базу невалидную ссылку
+	if err = retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+		if _, err := logFile.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("seek log file: %w", err)
+		}
+		fi, _ := logFile.Stat()
+		_, err = b.s3.PutObject(ctx, BucketLogs, logKey, logFile, fi.Size(),
+			minio.PutObjectOptions{ContentType: ContentTypeTextPlain},
+		)
+		return err
+	}); err != nil {
+		logKey = ""
+		slog.Warn("failed to put log file into s3",
+			slog.String("job_id", job.ID.String()),
+			slog.Any("error", err),
+		)
+	}
+
+	// публикуем сентинель, SSE-клиенты по нему понимают, что лог завершён
+	if err := b.l.PublishJobLogLine(ctx, model.JobLogLine{
+		JobID: job.ID,
+		Done:  true,
+	}); err != nil {
+		slog.Warn("failed to pub log line",
+			slog.String("job_id", job.ID.String()),
+			slog.Any("error", err),
+		)
 	}
 
 	// удаляем локальный образ из docker daemon чтобы не забивать диск
@@ -138,5 +208,5 @@ func (b *builder) Build(ctx context.Context, job model.Job) error {
 		)
 	}
 
-	return nil
+	return logKey, nil
 }

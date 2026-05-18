@@ -44,15 +44,21 @@ func main() {
 	if err := minio.InitBucket(ctx, minioClient, worker.BucketArtifacts); err != nil {
 		flog.Fatalf("cannot init minio bucket: %v", err)
 	}
+	if err := minio.InitBucket(ctx, minioClient, worker.BucketLogs); err != nil {
+		flog.Fatalf("cannot init minio logs bucket: %v", err)
+	}
 
 	conn, js, err := natsconn.NewConn(cfg.NATS.URL)
 	if err != nil {
 		flog.Fatalf("cannot connect to nats: %v", err)
 	}
 	defer conn.Close()
+	if err := natsconn.SetupStreams(ctx, js); err != nil {
+		flog.Fatalf("cannot setup streams: %v", err)
+	}
 
 	publisher := publishernats.NewNatsPublisher(js)
-	builder := worker.NewBuilder(dockerClient, minioClient, cfg.MasterKey)
+	builder := worker.NewBuilder(dockerClient, minioClient, publisher, cfg.MasterKey)
 	svc := worker.NewWorkerService(workerID, builder, publisher)
 	consumer := consumernats.NewNatsWorkerConsumer(js, svc)
 

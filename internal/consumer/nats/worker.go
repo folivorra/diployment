@@ -24,7 +24,13 @@ func NewNatsWorkerConsumer(js jetstream.JetStream, executor JobExecutor) *natsWo
 }
 
 func (c *natsWorkerConsumer) StartConsumeJobsDispatch(ctx context.Context) error {
-	return consume(ctx, c.js, nats.StreamJobs, DurableWorkers, []string{nats.SubjectJobDispatch},
+	return consume(ctx, c.js, nats.StreamJobs,
+		jetstream.ConsumerConfig{
+			Durable:       DurableWorkers,
+			FilterSubject: nats.SubjectJobDispatch,
+			AckPolicy:     jetstream.AckExplicitPolicy,
+			MaxDeliver:    MaxDeliverAttempts,
+		},
 		func(msg jetstream.Msg) error {
 			job, err := decode.UnmarshalMsgIntoEvent[model.Job](msg.Data())
 			if err != nil {

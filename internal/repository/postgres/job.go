@@ -90,11 +90,11 @@ func (j *jobPostgresRepo) ListByProjectID(ctx context.Context, projectID uuid.UU
 }
 
 // UpdateState обновляет состояние в записи о джобе.
-func (j *jobPostgresRepo) UpdateState(ctx context.Context, id uuid.UUID, status model.Status, finishedAt *time.Time) error {
+func (j *jobPostgresRepo) UpdateState(ctx context.Context, id uuid.UUID, status model.Status, logURL *string, finishedAt *time.Time) error {
 	query := `
 		UPDATE jobs
-		SET status = $1, finished_at = $2
-		WHERE id = $3;
+		SET status = $1, finished_at = $2, log_url = $3
+		WHERE id = $4;
 	`
 
 	tag, err := j.pool.Exec(
@@ -102,6 +102,7 @@ func (j *jobPostgresRepo) UpdateState(ctx context.Context, id uuid.UUID, status 
 		query,
 		status,
 		finishedAt,
+		logURL,
 		id,
 	)
 	if err != nil {

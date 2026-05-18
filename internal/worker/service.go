@@ -10,7 +10,7 @@ import (
 )
 
 type Builder interface {
-	Build(ctx context.Context, job model.Job) error
+	Build(ctx context.Context, job model.Job) (string, error)
 }
 
 type JobStatusPublisher interface {
@@ -41,7 +41,7 @@ func (s *workerService) ExecuteJob(ctx context.Context, job model.Job) error {
 	}
 
 	status := model.StatusSuccess
-	buildErr := s.b.Build(ctx, job)
+	logURL, buildErr := s.b.Build(ctx, job)
 	errMsg := ""
 	if buildErr != nil {
 		slog.Error("build job failed", slog.Any("error", buildErr))
@@ -53,6 +53,7 @@ func (s *workerService) ExecuteJob(ctx context.Context, job model.Job) error {
 		return s.pub.PublishJobFinished(ctx, model.JobFinishedEvent{
 			JobID:     job.ID,
 			ProjectID: job.ProjectID,
+			LogURL:    logURL,
 			Status:    status,
 			Error:     errMsg,
 		})

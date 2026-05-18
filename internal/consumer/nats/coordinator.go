@@ -26,7 +26,13 @@ func NewNatsCoordinatorConsumer(js jetstream.JetStream, mh MsgHandler) *natsCoor
 }
 
 func (c *natsCoordinatorConsumer) StartConsumeBuilds(ctx context.Context) error {
-	return consume(ctx, c.js, nats.StreamBuilds, DurableCoordinatorBuilds, []string{nats.SubjectBuildTriggered},
+	return consume(ctx, c.js, nats.StreamBuilds,
+		jetstream.ConsumerConfig{
+			Durable:       DurableCoordinatorBuilds,
+			FilterSubject: nats.SubjectBuildTriggered,
+			AckPolicy:     jetstream.AckExplicitPolicy,
+			MaxDeliver:    MaxDeliverAttempts,
+		},
 		func(msg jetstream.Msg) error {
 			event, err := decode.UnmarshalMsgIntoEvent[model.BuildEvent](msg.Data())
 			if err != nil {
@@ -38,7 +44,13 @@ func (c *natsCoordinatorConsumer) StartConsumeBuilds(ctx context.Context) error 
 }
 
 func (c *natsCoordinatorConsumer) StartConsumeJobsStatus(ctx context.Context) error {
-	return consume(ctx, c.js, nats.StreamJobs, DurableCoordinatorJobs, []string{nats.SubjectJobStarted, nats.SubjectJobFinished},
+	return consume(ctx, c.js, nats.StreamJobs,
+		jetstream.ConsumerConfig{
+			Durable:        DurableCoordinatorJobs,
+			FilterSubjects: []string{nats.SubjectJobStarted, nats.SubjectJobFinished},
+			AckPolicy:      jetstream.AckExplicitPolicy,
+			MaxDeliver:     MaxDeliverAttempts,
+		},
 		func(msg jetstream.Msg) error {
 			switch msg.Subject() {
 			case nats.SubjectJobStarted:

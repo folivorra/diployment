@@ -21,13 +21,14 @@ const (
 	MaxDeliverAttempts = 5
 )
 
-func consume(ctx context.Context, js jetstream.JetStream, stream, durable string, filterSubs []string, handle func(jetstream.Msg) error) error {
-	consumer, err := js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
-		Durable:        durable,
-		FilterSubjects: filterSubs,
-		AckPolicy:      jetstream.AckExplicitPolicy,
-		MaxDeliver:     MaxDeliverAttempts,
-	})
+func consume(
+	ctx context.Context,
+	js jetstream.JetStream,
+	stream string,
+	cons jetstream.ConsumerConfig,
+	handle func(jetstream.Msg) error,
+) error {
+	consumer, err := js.CreateOrUpdateConsumer(ctx, stream, cons)
 	if err != nil {
 		return fmt.Errorf("upsert nats consumer: %w", err)
 	}
