@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,17 +20,27 @@ type JobService interface {
 	GetByID(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*model.Job, error)
 }
 
-type JobEventSubscriber interface {
-	Subscribe(ctx context.Context, jobID uuid.UUID) (<-chan model.JobNotifyEvent, func(), error)
+type JobNotificationsSubscriber interface {
+	SubscribeNotifications(ctx context.Context, jobID uuid.UUID) (<-chan model.JobNotifyEvent, func(), error)
 }
+
+type JobLogSubscriber interface {
+	SubscribeLogs(ctx context.Context, jobID uuid.UUID) (<-chan model.JobLogLine, func(), error)
+}
+
+const (
+	StatusFormat = "event: status\ndata: {\"status\":\"%s\",\"error\":\"%s\"}\n\n"
+	LogFormat    = "event: log\ndata: %s\n\n"
+)
 
 type jobHandler struct {
 	svc JobService
-	sub JobEventSubscriber
+	ntf JobNotificationsSubscriber
+	lgs JobLogSubscriber
 }
 
-func NewJobHandler(svc JobService, sub JobEventSubscriber) *jobHandler {
-	return &jobHandler{svc: svc, sub: sub}
+func NewJobHandler(svc JobService, ntf JobNotificationsSubscriber, lgs JobLogSubscriber) *jobHandler {
+	return &jobHandler{svc: svc, ntf: ntf, lgs: lgs}
 }
 
 type jobResponse struct {
@@ -82,7 +93,7 @@ func (h *jobHandler) ListByProject(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-// Events стримит статусы джобы через SSE.
+// Events стримит статусы и логи джобы через SSE на одном соединении.
 func (h *jobHandler) Events(c echo.Context) error {
 	userID, ok := c.Get("user_id").(uuid.UUID)
 	if !ok || userID == uuid.Nil {
@@ -111,32 +122,69 @@ func (h *jobHandler) Events(c echo.Context) error {
 	c.Response().Header().Set("Connection", "keep-alive")
 	c.Response().WriteHeader(http.StatusOK)
 
-	writeEvent := func(status model.Status) {
-		_, _ = fmt.Fprintf(c.Response(), "data: {\"status\":\"%s\"}\n\n", status)
+	writeStatus := func(status model.Status, errStr string) {
+		_, _ = fmt.Fprintf(c.Response(), StatusFormat, status, errStr)
 		c.Response().Flush()
 	}
 
-	writeEvent(job.Status)
-	if job.Status == model.StatusSuccess || job.Status == model.StatusFailed {
-		return nil
+	writeLog := func(line string) {
+		data, _ := json.Marshal(struct {
+			Line string `json:"line"`
+		}{Line: line})
+		_, _ = fmt.Fprintf(c.Response(), LogFormat, data)
+		c.Response().Flush()
 	}
 
-	ch, stop, err := h.sub.Subscribe(c.Request().Context(), jobID)
+	// отправляем начальный статус сразу при подключении
+	writeStatus(job.Status, "")
+
+	gotTerminalStatus := job.Status == model.StatusSuccess || job.Status == model.StatusFailed
+	gotLogsDone := false
+
+	// подписываемся на логи всегда, DeliverAllPolicy отдаёт буфер прошлых строк + новые
+	logCh, stopLogs, err := h.lgs.SubscribeLogs(c.Request().Context(), jobID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
 	}
-	defer stop()
+	defer stopLogs()
+
+	// подписываемся на статусы только если джоба ещё не завершена
+	// nil-канал в select никогда не выбирается
+	var notifCh <-chan model.JobNotifyEvent
+	stopNotif := func() {}
+	if !gotTerminalStatus {
+		notifCh, stopNotif, err = h.ntf.SubscribeNotifications(c.Request().Context(), jobID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
+		}
+	}
+	defer stopNotif()
 
 	for {
 		select {
 		case <-c.Request().Context().Done():
 			return nil
-		case event, ok := <-ch:
+		case event, ok := <-notifCh:
 			if !ok {
 				return nil
 			}
-			writeEvent(event.Status)
+			writeStatus(event.Status, event.Error)
 			if event.Status == model.StatusSuccess || event.Status == model.StatusFailed {
+				gotTerminalStatus = true
+			}
+			if gotTerminalStatus && gotLogsDone {
+				return nil
+			}
+		case line, ok := <-logCh:
+			if !ok {
+				return nil
+			}
+			if line.Done {
+				gotLogsDone = true
+			} else {
+				writeLog(line.Line)
+			}
+			if gotTerminalStatus && gotLogsDone {
 				return nil
 			}
 		}
