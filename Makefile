@@ -8,7 +8,7 @@ export GOOSE_MIGRATION_DIR := ./migrations
 
 all: cluster_up
 
-cluster_up:
+cluster_up: cluster_down
 	docker compose up --build -d
 
 cluster_down:
