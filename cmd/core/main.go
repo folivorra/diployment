@@ -60,7 +60,7 @@ func main() {
 	userService := service.NewUserService(userRepo)
 	projectService := service.NewProjectService(projectRepo, projectRepo, githubProvider, userRepo, cfg.MasterKey)
 	jobSubscriber := subscribernats.NewSubscriberNats(js)
-	jobService := service.NewJobService(jobRepo, projectRepo)
+	jobService := service.NewJobService(jobRepo)
 	repoHandler := handler.NewRepoHandler(repoService)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -77,6 +77,8 @@ func main() {
 			AllowCredentials: true, // важно для работы с куками!
 		},
 	))
+
+	e.GET("/health", func(c echo.Context) error { return c.NoContent(http.StatusOK) })
 
 	auth := e.Group("/auth")
 	{

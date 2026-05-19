@@ -58,7 +58,7 @@ func main() {
 	}
 
 	publisher := publishernats.NewNatsPublisher(js)
-	builder := worker.NewBuilder(dockerClient, minioClient, publisher, cfg.MasterKey)
+	builder := worker.NewBuilder(dockerClient, minioClient, publisher, cfg.MasterKey, cfg.BuildTimeout)
 	svc := worker.NewWorkerService(workerID, builder, publisher)
 	consumer := consumernats.NewNatsWorkerConsumer(js, svc)
 

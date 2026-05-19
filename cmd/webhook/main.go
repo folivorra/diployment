@@ -58,6 +58,7 @@ func main() {
 	e.Use(slogecho.New(log))    // чтобы каждый HTTP-запрос логировался в slog
 	e.Use(middleware.Recover()) // чтобы сервер не падал на панике, а писал ошибку в логи
 
+	e.GET("/health", func(c echo.Context) error { return c.NoContent(http.StatusOK) })
 	e.POST("/webhook", handler.Webhook)
 
 	go func() {
