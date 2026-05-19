@@ -40,12 +40,19 @@ type CoordinatorConfig struct {
 
 	Postgres PostgresConfig
 	NATS     NATSConfig
+	Watchdog WatchdogConfig
+}
+
+type WatchdogConfig struct {
+	Interval   time.Duration `env:"WATCHDOG_INTERVAL" env-default:"5m"`
+	StaleAfter time.Duration `env:"WATCHDOG_STALE_AFTER" env-default:"30m"`
 }
 
 type WorkerConfig struct {
 	Env Env `env:"APP_ENV" env-default:"local"`
 
-	MasterKey []byte `env:"MASTER_KEY" env-required:"true"`
+	MasterKey    []byte        `env:"MASTER_KEY" env-required:"true"`
+	BuildTimeout time.Duration `env:"BUILD_TIMEOUT" env-default:"30m"`
 
 	NATS  NATSConfig
 	MinIO MinIOConfig
@@ -95,10 +102,14 @@ type WebhookServiceConfig struct {
 }
 
 func decodeBase64Key(encoded []byte) ([]byte, error) {
-	key := make([]byte, len(encoded))
-	_, err := base64.StdEncoding.Decode(key, encoded)
+	key := make([]byte, base64.StdEncoding.DecodedLen(len(encoded)))
+	n, err := base64.StdEncoding.Decode(key, encoded)
 	if err != nil {
 		return nil, fmt.Errorf("decoding master key: %w", err)
+	}
+	key = key[:n]
+	if n != 16 && n != 24 && n != 32 {
+		return nil, fmt.Errorf("master key must be 16, 24, or 32 bytes after base64 decode, got %d", n)
 	}
 	return key, nil
 }
