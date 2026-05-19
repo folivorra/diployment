@@ -2,55 +2,45 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/folivorra/diployment/internal/model"
+
 	"github.com/google/uuid"
 )
 
 type JobViewer interface {
-	ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]*model.Job, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*model.Job, error)
-}
-
-type ProjectGetter interface {
-	GetByID(ctx context.Context, id uuid.UUID) (*model.Project, error)
+	GetByIDWithOwner(ctx context.Context, id uuid.UUID) (*model.Job, uuid.UUID, error)
+	ListByProjectIDWithOwner(ctx context.Context, projectID uuid.UUID) ([]*model.Job, uuid.UUID, error)
 }
 
 type jobService struct {
-	jobs     JobViewer
-	projects ProjectGetter
+	jobs JobViewer
 }
 
-func NewJobService(jobs JobViewer, projects ProjectGetter) *jobService {
-	return &jobService{jobs: jobs, projects: projects}
+func NewJobService(jobs JobViewer) *jobService {
+	return &jobService{jobs: jobs}
 }
 
 func (s *jobService) ListByProject(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]*model.Job, error) {
-	project, err := s.projects.GetByID(ctx, projectID)
+	jobs, ownerID, err := s.jobs.ListByProjectIDWithOwner(ctx, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("get project: %w", err)
+		return nil, err
 	}
 
-	if project.UserID != userID {
+	if ownerID != userID {
 		return nil, ErrForbidden
 	}
 
-	return s.jobs.ListByProjectID(ctx, projectID)
+	return jobs, nil
 }
 
 func (s *jobService) GetByID(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*model.Job, error) {
-	job, err := s.jobs.GetByID(ctx, id)
+	job, ownerID, err := s.jobs.GetByIDWithOwner(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	project, err := s.projects.GetByID(ctx, job.ProjectID)
-	if err != nil {
-		return nil, err
-	}
-
-	if project.UserID != userID {
+	if ownerID != userID {
 		return nil, ErrForbidden
 	}
 
