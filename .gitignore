@@ -37,3 +37,4 @@ frontend/.env.local
 
 # claude code
 .claude/
+CLAUDE.md
