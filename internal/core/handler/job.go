@@ -29,7 +29,7 @@ type JobLogSubscriber interface {
 }
 
 const (
-	StatusFormat = "event: status\ndata: {\"status\":\"%s\",\"error\":\"%s\"}\n\n"
+	StatusFormat = "event: status\ndata: %s\n\n"
 	LogFormat    = "event: log\ndata: %s\n\n"
 )
 
@@ -123,7 +123,11 @@ func (h *jobHandler) Events(c echo.Context) error {
 	c.Response().WriteHeader(http.StatusOK)
 
 	writeStatus := func(status model.Status, errStr string) {
-		_, _ = fmt.Fprintf(c.Response(), StatusFormat, status, errStr)
+		data, _ := json.Marshal(struct {
+			Status model.Status `json:"status"`
+			Error  string       `json:"error"`
+		}{Status: status, Error: errStr})
+		_, _ = fmt.Fprintf(c.Response(), StatusFormat, data)
 		c.Response().Flush()
 	}
 
