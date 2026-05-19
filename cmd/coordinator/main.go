@@ -47,6 +47,8 @@ func main() {
 
 	log.Info("starting coordinator")
 
+	go svc.RunStaleJobsWatchdog(ctx, cfg.Watchdog.Interval, cfg.Watchdog.StaleAfter)
+
 	go func() {
 		if err := consumer.StartConsumeBuilds(ctx); err != nil {
 			slog.Error("builds consumer stopped", slog.Any("error", err))

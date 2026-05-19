@@ -14,6 +14,8 @@ import (
 type JobRepository interface {
 	Create(ctx context.Context, job *model.Job) (uuid.UUID, error)
 	UpdateState(ctx context.Context, id uuid.UUID, status model.Status, logURL *string, finishedAt *time.Time) error
+	FailStaleRunning(ctx context.Context, olderThan time.Duration) ([]uuid.UUID, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type JobDispatсher interface {
@@ -34,6 +36,38 @@ func NewCoordService(repo JobRepository, jd JobDispatсher, jn JobNotifier) *coo
 	return &coordinatorService{repo: repo, jd: jd, jn: jn}
 }
 
+// RunStaleJobsWatchdog периодически ищет зависшие running-джобы и переводит их в failed.
+// Для каждой такой джобы публикует JobNotifyEvent, чтобы разблокировать SSE-клиентов.
+func (c *coordinatorService) RunStaleJobsWatchdog(ctx context.Context, interval, olderThan time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ids, err := c.repo.FailStaleRunning(ctx, olderThan)
+			if err != nil {
+				slog.Error("stale jobs watchdog", slog.Any("error", err))
+				continue
+			}
+			for _, id := range ids {
+				slog.Warn("stale running job failed by watchdog", slog.String("job_id", id.String()))
+				if err := c.jn.PublishJobNotify(ctx, model.JobNotifyEvent{
+					JobID:  id,
+					Status: model.StatusFailed,
+					Error:  "job timed out: worker did not respond",
+				}); err != nil {
+					slog.Error("publish stale job notify",
+						slog.String("job_id", id.String()),
+						slog.Any("error", err),
+					)
+				}
+			}
+		}
+	}
+}
+
 // HandleBuildTriggered обрабатывает событие builds.triggered и отправляет событие jobs.dispatch.
 func (c *coordinatorService) HandleBuildTriggered(ctx context.Context, event model.BuildEvent) error {
 	job := model.Job{
@@ -51,9 +85,19 @@ func (c *coordinatorService) HandleBuildTriggered(ctx context.Context, event mod
 	}
 	job.ID = id
 
-	return retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	if err := retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		return c.jd.PublishJobDispatch(ctx, job)
-	})
+	}); err != nil {
+		// компенсация: удаляем джобу из DB, чтобы она не зависла в pending без воркера
+		if delErr := c.repo.Delete(ctx, id); delErr != nil {
+			slog.Error("compensating delete failed after dispatch error",
+				slog.String("job_id", id.String()),
+				slog.Any("error", delErr),
+			)
+		}
+		return err
+	}
+	return nil
 }
 
 // HandleJobStarted обрабатывает событие jobs.started.
@@ -62,7 +106,7 @@ func (c *coordinatorService) HandleJobStarted(ctx context.Context, event model.J
 		return err
 	}
 
-	if err := retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	if err := retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		return c.jn.PublishJobNotify(ctx, model.JobNotifyEvent{
 			JobID:  event.JobID,
 			Status: model.StatusRunning,
@@ -88,7 +132,7 @@ func (c *coordinatorService) HandleJobFinished(ctx context.Context, event model.
 		return err
 	}
 
-	if err := retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	if err := retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		return c.jn.PublishJobNotify(ctx, model.JobNotifyEvent{
 			JobID:  event.JobID,
 			Status: event.Status,
