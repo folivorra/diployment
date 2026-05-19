@@ -30,7 +30,7 @@ func NewWorkerService(id string, b Builder, pub JobStatusPublisher) *workerServi
 
 // ExecuteJob оркестрирует жизненный цикл джобы: уведомляет о старте, запускает сборку и публикует итог.
 func (s *workerService) ExecuteJob(ctx context.Context, job model.Job) error {
-	if err := retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	if err := retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		return s.pub.PublishJobStarted(ctx, model.JobStartedEvent{
 			JobID:     job.ID,
 			ProjectID: job.ProjectID,
@@ -49,7 +49,7 @@ func (s *workerService) ExecuteJob(ctx context.Context, job model.Job) error {
 		errMsg = buildErr.Error()
 	}
 
-	if err := retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	if err := retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		return s.pub.PublishJobFinished(ctx, model.JobFinishedEvent{
 			JobID:     job.ID,
 			ProjectID: job.ProjectID,

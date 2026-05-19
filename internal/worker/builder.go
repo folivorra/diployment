@@ -8,15 +8,18 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"time"
 
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/image"
 	"github.com/folivorra/diployment/internal/model"
 	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
 	"github.com/folivorra/diployment/pkg/retry"
+
+	"github.com/docker/docker/api/types/build"
+	"github.com/docker/docker/api/types/image"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/labstack/gommon/bytes"
 	"github.com/minio/minio-go/v7"
 	"github.com/moby/go-archive"
 	"github.com/moby/moby/client"
@@ -40,19 +43,20 @@ type LogPublisher interface {
 }
 
 type builder struct {
-	docker *client.Client
-	s3     *minio.Client
-	l      LogPublisher
-	key    []byte
+	docker       *client.Client
+	s3           *minio.Client
+	l            LogPublisher
+	key          []byte
+	buildTimeout time.Duration
 }
 
-func NewBuilder(d *client.Client, s3 *minio.Client, l LogPublisher, masterKey []byte) *builder {
-	return &builder{docker: d, s3: s3, l: l, key: masterKey}
+func NewBuilder(d *client.Client, s3 *minio.Client, l LogPublisher, masterKey []byte, buildTimeout time.Duration) *builder {
+	return &builder{docker: d, s3: s3, l: l, key: masterKey, buildTimeout: buildTimeout}
 }
 
 // Build выполняет полный воркфлоу: подтягивает репозиторий, собирает проект и сохраняет артефактов.
 func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
-	token, err := aesgcm.Decrypt(job.EncryptedToken, b.key, []byte("USER-DATA"))
+	token, err := aesgcm.Decrypt(job.EncryptedToken, b.key, aesgcm.GitHubToken)
 	if err != nil {
 		return "", fmt.Errorf("decrypt clone token: %w", err)
 	}
@@ -64,14 +68,6 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// создаём файл для накопления лога сборки - пишем на диск, а не в память, чтобы не словить OOM
-	logKey := fmt.Sprintf(TmpLogNamePattern, job.ID.String())
-	logFile, err := os.CreateTemp(tmpDir, logKey)
-	if err != nil {
-		return "", fmt.Errorf("create tmp log file: %w", err)
-	}
-	defer func() { _ = logFile.Close() }()
-
 	cloneOpts := &git.CloneOptions{
 		URL:           job.CloneURL,
 		ReferenceName: plumbing.NewBranchReferenceName(job.Branch),
@@ -81,7 +77,7 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 	}
 
 	// клонируем только нужную ветку без истории, ретрай на случай сетевых проблем
-	err = retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	err = retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		// чистим перед каждой попыткой на случай частичного клона
 		if err := os.RemoveAll(tmpDir); err != nil {
 			return err
@@ -96,6 +92,14 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 		return "", fmt.Errorf("git clone: %w", err)
 	}
 
+	// создаём файл для накопления лога сборки - пишем на диск, а не в память, чтобы не словить OOM
+	logKey := fmt.Sprintf(TmpLogNamePattern, job.ID.String())
+	logFile, err := os.CreateTemp(tmpDir, logKey)
+	if err != nil {
+		return "", fmt.Errorf("create tmp log file: %w", err)
+	}
+	defer func() { _ = logFile.Close() }()
+
 	// упаковываем директорию в tar, docker daemon принимает build context именно так
 	tar, err := archive.TarWithOptions(tmpDir, &archive.TarOptions{})
 	if err != nil {
@@ -105,7 +109,9 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 
 	// запускаем сборку образа, тег = job_id
 	tags := []string{job.ID.String()}
-	bresp, err := b.docker.ImageBuild(ctx, tar, build.ImageBuildOptions{
+	buildCtx, buildCancel := context.WithTimeout(ctx, b.buildTimeout)
+	defer buildCancel()
+	bresp, err := b.docker.ImageBuild(buildCtx, tar, build.ImageBuildOptions{
 		Tags:       tags,
 		Dockerfile: "Dockerfile",
 		Remove:     true,
@@ -119,6 +125,7 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 	// каждая строка это JSON, проверяем на наличие ошибки сборки
 	// лог пишем в файл и пушим в стрим
 	scanner := bufio.NewScanner(bresp.Body)
+	scanner.Buffer(make([]byte, 512*bytes.KiB), 512*bytes.KiB)
 	writer := bufio.NewWriter(logFile)
 	for scanner.Scan() {
 		var msg struct {
@@ -129,8 +136,7 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 			return "", fmt.Errorf("docker build: %s", msg.Error)
 		}
 
-		_, err = writer.Write([]byte(msg.Stream))
-		if err != nil {
+		if _, err = writer.WriteString(msg.Stream); err != nil {
 			return "", fmt.Errorf("print log line into file: %w", err)
 		}
 
@@ -153,7 +159,7 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 
 	// экспортируем образ и стримим в MinIO, ретрай на случай инфраструктурных проблем
 	// ImageSave вызывается внутри ретрая, тк стрим нельзя перечитать повторно
-	err = retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	err = retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		imageReader, err := b.docker.ImageSave(ctx, tags)
 		if err != nil {
 			return err
@@ -171,7 +177,7 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 
 	// перематываем файл и загружаем лог в MinIO
 	// некритично, если не вышло, logKey обнуляем, чтобы координатор не записал в базу невалидную ссылку
-	if err = retry.WithRetry(retry.DefaultAttempts, retry.DefaultWait, func() error {
+	if err = retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 		if _, err := logFile.Seek(0, io.SeekStart); err != nil {
 			return fmt.Errorf("seek log file: %w", err)
 		}
