@@ -54,7 +54,7 @@ func (a *authService) Authenticate(ctx context.Context, code string) (string, er
 		return "", fmt.Errorf("%w: get user info: %w", ErrProviderAPI, err)
 	}
 
-	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.key, []byte("USER-DATA")) // fixme константная юзер дата
+	encryptedToken, err := aesgcm.Encrypt(token.AccessToken, a.key, aesgcm.GitHubToken)
 	if err != nil {
 		return "", fmt.Errorf("encrypt token: %w", err)
 	}

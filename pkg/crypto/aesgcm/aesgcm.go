@@ -8,6 +8,13 @@ import (
 	"io"
 )
 
+var (
+	// GitHubToken AAD для шифрования OAuth access token пользователя
+	GitHubToken   = []byte("GITHUB-TOKEN")
+	// WebhookSecret AAD для шифрования HMAC-секрета вебхука
+	WebhookSecret = []byte("WEBHOOK-SECRET") 
+)
+
 func Encrypt(plainText string, key []byte, userData []byte) ([]byte, error) {
 	// инициализация aes
 	block, err := aes.NewCipher(key)

@@ -35,7 +35,7 @@ func (r *repoService) ListUserReposByID(ctx context.Context, userID uuid.UUID) (
 		return nil, err
 	}
 
-	token, err := aesgcm.Decrypt(user.EncryptedToken, r.key, []byte("USER-DATA")) // fixme константная user-data
+	token, err := aesgcm.Decrypt(user.EncryptedToken, r.key, aesgcm.GitHubToken) // fixme константная user-data
 	if err != nil {
 		return nil, fmt.Errorf("decrypt user token: %w", err)
 	}
@@ -54,7 +54,7 @@ func (r *repoService) ListRepoBranchesByID(ctx context.Context, userID uuid.UUID
 		return nil, err
 	}
 
-	token, err := aesgcm.Decrypt(user.EncryptedToken, r.key, []byte("USER-DATA"))
+	token, err := aesgcm.Decrypt(user.EncryptedToken, r.key, aesgcm.GitHubToken)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt user token: %w", err)
 	}

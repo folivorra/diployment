@@ -95,7 +95,7 @@ func (h *handler) Webhook(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
 
-	decryptedSecret, err := aesgcm.Decrypt(project.WebhookSecret, h.key, []byte("USER-DATA")) // fixme const userdata
+	decryptedSecret, err := aesgcm.Decrypt(project.WebhookSecret, h.key, aesgcm.WebhookSecret)
 	if err != nil {
 		slog.Error("decrypt webhook secret",
 			slog.String("project_id", project.ID.String()),

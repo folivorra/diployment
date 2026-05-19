@@ -61,7 +61,7 @@ func (p *projectService) Import(ctx context.Context, ownerID uuid.UUID, input Im
 		return fmt.Errorf("get repo owner: %w", err)
 	}
 
-	decryptedToken, err := aesgcm.Decrypt(owner.EncryptedToken, p.key, []byte("USER-DATA")) // fixme const data
+	decryptedToken, err := aesgcm.Decrypt(owner.EncryptedToken, p.key, aesgcm.GitHubToken)
 	if err != nil {
 		return fmt.Errorf("decrypt repo owner token: %w", err)
 	}
@@ -77,7 +77,7 @@ func (p *projectService) Import(ctx context.Context, ownerID uuid.UUID, input Im
 		return fmt.Errorf("%w: create webhook on repo: %w", ErrProviderAPI, err)
 	}
 
-	encryptedWebhookSecret, err := aesgcm.Encrypt(webhookSecret, p.key, []byte("USER-DATA"))
+	encryptedWebhookSecret, err := aesgcm.Encrypt(webhookSecret, p.key, aesgcm.WebhookSecret)
 	if err != nil {
 		_ = p.wm.DeleteWebhook(ctx, string(decryptedToken), input.RepoFullName, wID)
 		return fmt.Errorf("encrypt webhook secret: %w", err)
