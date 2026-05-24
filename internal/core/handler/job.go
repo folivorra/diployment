@@ -44,13 +44,17 @@ func NewJobHandler(svc JobService, ntf JobNotificationsSubscriber, lgs JobLogSub
 }
 
 type jobResponse struct {
-	ID         uuid.UUID    `json:"id"`
-	Status     model.Status `json:"status"`
-	CommitSHA  string       `json:"commit_sha"`
-	CommitMsg  string       `json:"commit_msg"`
-	LogURL     string       `json:"log_url,omitempty"`
-	CreatedAt  time.Time    `json:"created_at"`
-	FinishedAt *time.Time   `json:"finished_at,omitempty"`
+	ID               uuid.UUID    `json:"id"`
+	Status           model.Status `json:"status"`
+	CommitSHA        string       `json:"commit_sha"`
+	CommitMsg        string       `json:"commit_msg"`
+	CreatedAt        time.Time    `json:"created_at"`
+	BuildLogURL      string       `json:"build_log_url,omitempty"`
+	BuildStartedAt   *time.Time   `json:"build_started_at,omitempty"`
+	BuildFinishedAt  *time.Time   `json:"build_finished_at,omitempty"`
+	DeployLogURL     string       `json:"deploy_log_url,omitempty"`
+	DeployStartedAt  *time.Time   `json:"deploy_started_at,omitempty"`
+	DeployFinishedAt *time.Time   `json:"deploy_finished_at,omitempty"`
 }
 
 // ListByProject возвращает список джоб для указанного проекта.
@@ -80,13 +84,17 @@ func (h *jobHandler) ListByProject(c echo.Context) error {
 	resp := make([]jobResponse, len(jobs))
 	for i, j := range jobs {
 		resp[i] = jobResponse{
-			ID:         j.ID,
-			Status:     j.Status,
-			CommitSHA:  j.CommitSHA,
-			CommitMsg:  j.CommitMsg,
-			LogURL:     j.LogURL,
-			CreatedAt:  j.CreatedAt,
-			FinishedAt: j.FinishedAt,
+			ID:               j.ID,
+			Status:           j.Status,
+			CommitSHA:        j.CommitSHA,
+			CommitMsg:        j.CommitMsg,
+			CreatedAt:        j.CreatedAt,
+			BuildLogURL:      j.BuildLogURL,
+			BuildStartedAt:   j.BuildStartedAt,
+			BuildFinishedAt:  j.BuildFinishedAt,
+			DeployLogURL:     j.DeployLogURL,
+			DeployStartedAt:  j.DeployStartedAt,
+			DeployFinishedAt: j.DeployFinishedAt,
 		}
 	}
 
@@ -122,41 +130,55 @@ func (h *jobHandler) Events(c echo.Context) error {
 	c.Response().Header().Set("Connection", "keep-alive")
 	c.Response().WriteHeader(http.StatusOK)
 
-	writeStatus := func(status model.Status, errStr string) {
+	writeStatus := func(status model.Status, phase model.Phase, errStr string) {
 		data, _ := json.Marshal(struct {
 			Status model.Status `json:"status"`
-			Error  string       `json:"error"`
-		}{Status: status, Error: errStr})
+			Phase  model.Phase  `json:"phase"`
+			Error  string       `json:"error,omitempty"`
+		}{Status: status, Phase: phase, Error: errStr})
 		_, _ = fmt.Fprintf(c.Response(), StatusFormat, data)
 		c.Response().Flush()
 	}
 
-	writeLog := func(line string) {
+	writeLog := func(line string, phase model.Phase) {
 		data, _ := json.Marshal(struct {
-			Line string `json:"line"`
-		}{Line: line})
+			Line  string      `json:"line"`
+			Phase model.Phase `json:"phase"`
+		}{Line: line, Phase: phase})
 		_, _ = fmt.Fprintf(c.Response(), LogFormat, data)
 		c.Response().Flush()
 	}
 
-	// отправляем начальный статус сразу при подключении
-	writeStatus(job.Status, "")
+	// Определяем текущую фазу по полям джобы из БД.
+	// Нужно чтобы отправить правильный начальный статус клиенту.
+	currentPhase := func() model.Phase {
+		if job.DeployStartedAt != nil {
+			return model.PhaseDeploy
+		}
+		if job.BuildStartedAt != nil {
+			return model.PhaseBuild
+		}
+		return ""
+	}()
 
-	gotTerminalStatus := job.Status == model.StatusSuccess || job.Status == model.StatusFailed
-	gotLogsDone := false
+	writeStatus(job.Status, currentPhase, "")
 
-	// подписываемся на логи всегда, DeliverAllPolicy отдаёт буфер прошлых строк + новые
+	// Если джоба уже завершена — подписываемся только на логи.
+	// NATS отдаст все старые строки из буфера (DeliverAllPolicy),
+	// и мы закроем стрим когда придёт Done нужной фазы.
+	alreadyDone := job.Status == model.StatusSuccess || job.Status == model.StatusFailed
+
 	logCh, stopLogs, err := h.lgs.SubscribeLogs(c.Request().Context(), jobID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
 	}
 	defer stopLogs()
 
-	// подписываемся на статусы только если джоба ещё не завершена
-	// nil-канал в select никогда не выбирается
+	// nil-канал в select никогда не выбирается — это стандартный Go-приём
+	// чтобы не заводить отдельный bool "подписан ли notifCh"
 	var notifCh <-chan model.JobNotifyEvent
 	stopNotif := func() {}
-	if !gotTerminalStatus {
+	if !alreadyDone {
 		notifCh, stopNotif, err = h.ntf.SubscribeNotifications(c.Request().Context(), jobID)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
@@ -164,31 +186,45 @@ func (h *jobHandler) Events(c echo.Context) error {
 	}
 	defer stopNotif()
 
+	// gotTerminalStatus: знаем что джоба завершена (либо из БД, либо пришло по notifCh)
+	// buildDone/deployDone: пришёл Done-сентинель соответствующей фазы
+	gotTerminalStatus := alreadyDone
+	buildDone := false
+	deployDone := false
+
 	for {
 		select {
 		case <-c.Request().Context().Done():
 			return nil
+
 		case event, ok := <-notifCh:
 			if !ok {
 				return nil
 			}
-			writeStatus(event.Status, event.Error)
+			writeStatus(event.Status, event.Phase, event.Error)
 			if event.Status == model.StatusSuccess || event.Status == model.StatusFailed {
 				gotTerminalStatus = true
 			}
-			if gotTerminalStatus && gotLogsDone {
+			if gotTerminalStatus && (buildDone || deployDone) {
 				return nil
 			}
+
 		case line, ok := <-logCh:
 			if !ok {
 				return nil
 			}
-			if line.Done {
-				gotLogsDone = true
-			} else {
-				writeLog(line.Line)
+			if !line.Done {
+				writeLog(line.Line, line.Phase)
+				continue
 			}
-			if gotTerminalStatus && gotLogsDone {
+			// Done-сентинель: ждём финального статуса в обоих случаях,
+			// так как notify может прийти после Done из-за порядка публикации в NATS.
+			if line.Phase == model.PhaseDeploy {
+				deployDone = true
+			} else {
+				buildDone = true
+			}
+			if gotTerminalStatus {
 				return nil
 			}
 		}
