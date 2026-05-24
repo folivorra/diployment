@@ -7,12 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/folivorra/diployment/internal/builder"
 	"github.com/folivorra/diployment/internal/config"
 	consumernats "github.com/folivorra/diployment/internal/consumer/nats"
 	"github.com/folivorra/diployment/internal/minio"
 	natsconn "github.com/folivorra/diployment/internal/nats"
 	publishernats "github.com/folivorra/diployment/internal/publisher/nats"
-	"github.com/folivorra/diployment/internal/worker"
 	"github.com/folivorra/diployment/pkg/logger"
 
 	"github.com/google/uuid"
@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	cfg := config.MustGetWorker("config/.worker.env")
+	cfg := config.MustGetBuilder("config/.builder.env")
 
 	log := logger.Setup(cfg.Env)
 	slog.SetDefault(log)
@@ -29,7 +29,7 @@ func main() {
 	defer cancel()
 
 	workerID := uuid.New().String()
-	log.Info("starting worker", slog.String("worker_id", workerID))
+	log.Info("starting builder", slog.String("worker_id", workerID))
 
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -41,10 +41,10 @@ func main() {
 	if err != nil {
 		flog.Fatalf("cannot create minio client: %v", err)
 	}
-	if err := minio.InitBucket(ctx, minioClient, worker.BucketArtifacts); err != nil {
+	if err := minio.InitBucket(ctx, minioClient, builder.BucketArtifacts); err != nil {
 		flog.Fatalf("cannot init minio bucket: %v", err)
 	}
-	if err := minio.InitBucket(ctx, minioClient, worker.BucketLogs); err != nil {
+	if err := minio.InitBucket(ctx, minioClient, builder.BucketLogs); err != nil {
 		flog.Fatalf("cannot init minio logs bucket: %v", err)
 	}
 
@@ -58,13 +58,13 @@ func main() {
 	}
 
 	publisher := publishernats.NewNatsPublisher(js)
-	builder := worker.NewBuilder(dockerClient, minioClient, publisher, cfg.MasterKey, cfg.BuildTimeout)
-	svc := worker.NewWorkerService(workerID, builder, publisher)
-	consumer := consumernats.NewNatsWorkerConsumer(js, svc)
+	b := builder.NewBuilder(dockerClient, minioClient, publisher, cfg.MasterKey, cfg.BuildTimeout)
+	svc := builder.NewBuilderService(workerID, b, publisher)
+	consumer := consumernats.NewNatsBuildConsumer(js, svc)
 
-	if err := consumer.StartConsumeJobsDispatch(ctx); err != nil {
-		slog.Error("worker consumer stopped", slog.Any("error", err))
+	if err := consumer.StartConsumeBuildsDispatch(ctx); err != nil {
+		slog.Error("builds dispatch consumer stopped", slog.Any("error", err))
 	}
 
-	log.Info("shutting down worker", slog.String("worker_id", workerID))
+	log.Info("shutting down builder", slog.String("worker_id", workerID))
 }

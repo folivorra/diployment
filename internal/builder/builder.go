@@ -1,4 +1,4 @@
-package worker
+package builder
 
 import (
 	"bufio"
@@ -38,8 +38,9 @@ const (
 	UnknownSize = -1
 )
 
+// LogPublisher стримит строки лога в NATS.
 type LogPublisher interface {
-	PublishJobLogLine(ctx context.Context, logLine model.JobLogLine) error
+	PublishJobsLogLine(ctx context.Context, logLine model.JobLogLine) error
 }
 
 type builder struct {
@@ -50,13 +51,14 @@ type builder struct {
 	buildTimeout time.Duration
 }
 
+// NewBuilder создаёт билдер с docker-клиентом и зависимостями.
 func NewBuilder(d *client.Client, s3 *minio.Client, l LogPublisher, masterKey []byte, buildTimeout time.Duration) *builder {
 	return &builder{docker: d, s3: s3, l: l, key: masterKey, buildTimeout: buildTimeout}
 }
 
 // Build выполняет полный воркфлоу: подтягивает репозиторий, собирает проект и сохраняет артефактов.
-func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
-	token, err := aesgcm.Decrypt(job.EncryptedToken, b.key, aesgcm.GitHubToken)
+func (b *builder) Build(ctx context.Context, event model.BuildDispatchEvent) (string, error) {
+	token, err := aesgcm.Decrypt(event.EncryptedToken, b.key, aesgcm.GitHubToken)
 	if err != nil {
 		return "", fmt.Errorf("decrypt clone token: %w", err)
 	}
@@ -69,8 +71,8 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cloneOpts := &git.CloneOptions{
-		URL:           job.CloneURL,
-		ReferenceName: plumbing.NewBranchReferenceName(job.Branch),
+		URL:           event.CloneURL,
+		ReferenceName: plumbing.NewBranchReferenceName(event.Branch),
 		SingleBranch:  true,
 		Depth:         1,
 		Auth:          &githttp.BasicAuth{Username: "x-token", Password: string(token)},
@@ -92,8 +94,8 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 		return "", fmt.Errorf("git clone: %w", err)
 	}
 
-	// создаём файл для накопления лога сборки - пишем на диск, а не в память, чтобы не словить OOM
-	logKey := fmt.Sprintf(TmpLogNamePattern, job.ID.String())
+	// создаём файл для накопления лога сборки: пишем на диск, а не в память, чтобы не словить OOM
+	logKey := fmt.Sprintf(TmpLogNamePattern, event.JobID.String())
 	logFile, err := os.CreateTemp(tmpDir, logKey)
 	if err != nil {
 		return "", fmt.Errorf("create tmp log file: %w", err)
@@ -108,7 +110,7 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 	defer func() { _ = tar.Close() }()
 
 	// запускаем сборку образа, тег = job_id
-	tags := []string{job.ID.String()}
+	tags := []string{event.JobID.String()}
 	buildCtx, buildCancel := context.WithTimeout(ctx, b.buildTimeout)
 	defer buildCancel()
 	bresp, err := b.docker.ImageBuild(buildCtx, tar, build.ImageBuildOptions{
@@ -140,12 +142,13 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 			return "", fmt.Errorf("print log line into file: %w", err)
 		}
 
-		if err := b.l.PublishJobLogLine(ctx, model.JobLogLine{
-			JobID: job.ID,
+		if err := b.l.PublishJobsLogLine(ctx, model.JobLogLine{
+			JobID: event.JobID,
 			Line:  msg.Stream,
+			Phase: model.PhaseBuild,
 		}); err != nil {
 			slog.Warn("failed to pub log line",
-				slog.String("job_id", job.ID.String()),
+				slog.String("job_id", event.JobID.String()),
 				slog.Any("error", err),
 			)
 		}
@@ -166,7 +169,7 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 		}
 		defer func() { _ = imageReader.Close() }()
 
-		_, err = b.s3.PutObject(ctx, BucketArtifacts, job.ID.String()+".tar", imageReader, UnknownSize,
+		_, err = b.s3.PutObject(ctx, BucketArtifacts, event.JobID.String()+".tar", imageReader, UnknownSize,
 			minio.PutObjectOptions{ContentType: ContentTypeXTar},
 		)
 		return err
@@ -189,27 +192,28 @@ func (b *builder) Build(ctx context.Context, job model.Job) (string, error) {
 	}); err != nil {
 		logKey = ""
 		slog.Warn("failed to put log file into s3",
-			slog.String("job_id", job.ID.String()),
+			slog.String("job_id", event.JobID.String()),
 			slog.Any("error", err),
 		)
 	}
 
 	// публикуем сентинель, SSE-клиенты по нему понимают, что лог завершён
-	if err := b.l.PublishJobLogLine(ctx, model.JobLogLine{
-		JobID: job.ID,
+	if err := b.l.PublishJobsLogLine(ctx, model.JobLogLine{
+		JobID: event.JobID,
+		Phase: model.PhaseBuild,
 		Done:  true,
 	}); err != nil {
 		slog.Warn("failed to pub log line",
-			slog.String("job_id", job.ID.String()),
+			slog.String("job_id", event.JobID.String()),
 			slog.Any("error", err),
 		)
 	}
 
 	// удаляем локальный образ из docker daemon чтобы не забивать диск
-	// некритично - логируем и продолжаем если не получилось
+	// некритично: логируем и продолжаем если не получилось
 	if _, err = b.docker.ImageRemove(ctx, tags[0], image.RemoveOptions{Force: true}); err != nil {
 		slog.Warn("failed to remove docker image",
-			slog.String("job_id", job.ID.String()),
+			slog.String("job_id", event.JobID.String()),
 			slog.Any("error", err),
 		)
 	}
