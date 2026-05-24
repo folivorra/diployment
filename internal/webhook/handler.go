@@ -50,8 +50,8 @@ type ProjectGetter interface {
 	GetByFullName(ctx context.Context, fullName string) (*model.Project, error)
 }
 
-type BuildEventPusher interface {
-	PublishBuildEvent(ctx context.Context, event model.BuildEvent) error
+type JobTriggerPublisher interface {
+	PublishJobTriggered(ctx context.Context, event model.JobTriggeredEvent) error
 }
 
 type UserGetter interface {
@@ -60,13 +60,13 @@ type UserGetter interface {
 
 type handler struct {
 	pg  ProjectGetter
-	bp  BuildEventPusher
+	jp  JobTriggerPublisher
 	ug  UserGetter
 	key []byte
 }
 
-func NewWebhookHandler(pg ProjectGetter, bp BuildEventPusher, ug UserGetter, key []byte) *handler {
-	return &handler{pg: pg, bp: bp, ug: ug, key: key}
+func NewWebhookHandler(pg ProjectGetter, jp JobTriggerPublisher, ug UserGetter, key []byte) *handler {
+	return &handler{pg: pg, jp: jp, ug: ug, key: key}
 }
 
 // Webhook принимает запросы со стороны provider, проверяет подпись и собирает+отправляет событие в NATS.
@@ -145,7 +145,7 @@ func (h *handler) Webhook(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
 
-	event := model.BuildEvent{
+	event := model.JobTriggeredEvent{
 		ProjectID:      project.ID,
 		RepoFullName:   project.RepoFullName,
 		CloneURL:       project.CloneURL,
@@ -154,8 +154,8 @@ func (h *handler) Webhook(c echo.Context) error {
 		CommitMsg:      commitMsg,
 		EncryptedToken: user.EncryptedToken,
 	}
-	if err = h.bp.PublishBuildEvent(c.Request().Context(), event); err != nil {
-		slog.Error("publish build event",
+	if err = h.jp.PublishJobTriggered(c.Request().Context(), event); err != nil {
+		slog.Error("publish job triggered",
 			slog.String("project_id", project.ID.String()),
 			slog.String("repo", req.Repository.FullName),
 			slog.Any("error", err),

@@ -30,13 +30,21 @@ type RepoOwnerGetter interface {
 }
 
 type ImportProjectInput struct {
-	RepoFullName string `json:"repo_full_name"`
-	CloneURL     string `json:"clone_url"`
-	Branch       string `json:"branch"`
+	RepoFullName     string `json:"repo_full_name"`
+	CloneURL         string `json:"clone_url"`
+	Branch           string `json:"branch"`
+	SSHHost          string `json:"ssh_host"`
+	SSHPort          int    `json:"ssh_port"`
+	SSHUser          string `json:"ssh_user"`
+	SSHKey           []byte `json:"ssh_key"`
+	DeployRestartCmd string `json:"deploy_restart_cmd"`
+	DeployWorkdir    string `json:"deploy_workdir"`
 }
 
 func (i ImportProjectInput) IsValid() bool {
-	return i.RepoFullName != "" && i.CloneURL != "" && i.Branch != ""
+	return i.RepoFullName != "" && i.CloneURL != "" && i.Branch != "" &&
+		i.SSHHost != "" && i.SSHPort > 0 && i.SSHUser != "" &&
+		len(i.SSHKey) > 0 && i.DeployRestartCmd != "" && i.DeployWorkdir != ""
 }
 
 type projectService struct {
@@ -83,13 +91,25 @@ func (p *projectService) Import(ctx context.Context, ownerID uuid.UUID, input Im
 		return fmt.Errorf("encrypt webhook secret: %w", err)
 	}
 
+	encryptedSSHKey, err := aesgcm.Encrypt(string(input.SSHKey), p.key, aesgcm.DeploySSHKey)
+	if err != nil {
+		_ = p.wm.DeleteWebhook(ctx, string(decryptedToken), input.RepoFullName, wID)
+		return fmt.Errorf("encrypt ssh key: %w", err)
+	}
+
 	project := &model.Project{
-		UserID:        owner.ID,
-		RepoFullName:  input.RepoFullName,
-		Branch:        input.Branch,
-		CloneURL:      input.CloneURL,
-		WebhookID:     wID,
-		WebhookSecret: encryptedWebhookSecret,
+		UserID:           owner.ID,
+		RepoFullName:     input.RepoFullName,
+		Branch:           input.Branch,
+		CloneURL:         input.CloneURL,
+		WebhookID:        wID,
+		WebhookSecret:    encryptedWebhookSecret,
+		SSHHost:          input.SSHHost,
+		SSHPort:          input.SSHPort,
+		SSHUser:          input.SSHUser,
+		SSHKey:           encryptedSSHKey,
+		DeployRestartCmd: input.DeployRestartCmd,
+		DeployWorkdir:    input.DeployWorkdir,
 	}
 	if err = p.pc.Create(ctx, project); err != nil {
 		_ = p.wm.DeleteWebhook(ctx, string(decryptedToken), input.RepoFullName, wID)

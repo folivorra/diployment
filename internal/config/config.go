@@ -48,11 +48,22 @@ type WatchdogConfig struct {
 	StaleAfter time.Duration `env:"WATCHDOG_STALE_AFTER" env-default:"30m"`
 }
 
-type WorkerConfig struct {
+type BuilderConfig struct {
 	Env Env `env:"APP_ENV" env-default:"local"`
 
 	MasterKey    []byte        `env:"MASTER_KEY" env-required:"true"`
 	BuildTimeout time.Duration `env:"BUILD_TIMEOUT" env-default:"30m"`
+
+	NATS  NATSConfig
+	MinIO MinIOConfig
+}
+
+type DeployerConfig struct {
+	Env Env `env:"APP_ENV" env-default:"local"`
+
+	MasterKey      []byte        `env:"MASTER_KEY" env-required:"true"`
+	DeployTimeout  time.Duration `env:"DEPLOY_TIMEOUT" env-default:"10m"`
+	SSHDialTimeout time.Duration `env:"SSH_DIAL_TIMEOUT" env-default:"30s"`
 
 	NATS  NATSConfig
 	MinIO MinIOConfig
@@ -121,8 +132,28 @@ type MinIOConfig struct {
 	UseSSL    bool   `env:"MINIO_USE_SSL" env-default:"false"`
 }
 
-func MustGetWorker(envFile string) *WorkerConfig {
-	cfg := &WorkerConfig{}
+func MustGetBuilder(envFile string) *BuilderConfig {
+	cfg := &BuilderConfig{}
+	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("cfg configure: %v", err)
+		}
+	}
+	if err := cleanenv.ReadEnv(cfg); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	var err error
+	if cfg.MasterKey, err = decodeBase64Key(cfg.MasterKey); err != nil {
+		log.Fatalf("cfg configure: %v", err)
+	}
+	if !cfg.Env.IsValid() {
+		log.Fatalf("cfg configure: APP_ENV invalid")
+	}
+	return cfg
+}
+
+func MustGetDeployer(envFile string) *DeployerConfig {
+	cfg := &DeployerConfig{}
 	if err := cleanenv.ReadConfig(envFile, cfg); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			log.Fatalf("cfg configure: %v", err)

@@ -18,27 +18,39 @@ func NewNatsPublisher(js jetstream.JetStream) *natsPublisher {
 	return &natsPublisher{js: js}
 }
 
-func (p *natsPublisher) PublishBuildEvent(ctx context.Context, event model.BuildEvent) error {
-	return p.publish(ctx, nats.SubjectBuildTriggered, event)
+func (p *natsPublisher) PublishJobTriggered(ctx context.Context, event model.JobTriggeredEvent) error {
+	return p.publish(ctx, nats.SubjectJobTriggered, event)
 }
 
-func (p *natsPublisher) PublishJobDispatch(ctx context.Context, job model.Job) error {
-	return p.publish(ctx, nats.SubjectJobDispatch, job)
+func (p *natsPublisher) PublishBuildsDispatch(ctx context.Context, event model.BuildDispatchEvent) error {
+	return p.publish(ctx, nats.SubjectBuildsDispatch, event)
 }
 
-func (p *natsPublisher) PublishJobStarted(ctx context.Context, event model.JobStartedEvent) error {
-	return p.publish(ctx, nats.SubjectJobStarted, event)
+func (p *natsPublisher) PublishBuildsStarted(ctx context.Context, event model.BuildStartedEvent) error {
+	return p.publish(ctx, nats.SubjectBuildsStarted, event)
 }
 
-func (p *natsPublisher) PublishJobFinished(ctx context.Context, event model.JobFinishedEvent) error {
-	return p.publish(ctx, nats.SubjectJobFinished, event)
+func (p *natsPublisher) PublishBuildsFinished(ctx context.Context, event model.BuildFinishedEvent) error {
+	return p.publish(ctx, nats.SubjectBuildsFinished, event)
 }
 
-func (p *natsPublisher) PublishJobNotify(ctx context.Context, event model.JobNotifyEvent) error {
+func (p *natsPublisher) PublishDeployDispatch(ctx context.Context, event model.DeployDispatchEvent) error {
+	return p.publish(ctx, nats.SubjectDeploysDispatch, event)
+}
+
+func (p *natsPublisher) PublishDeployStarted(ctx context.Context, event model.DeployStartedEvent) error {
+	return p.publish(ctx, nats.SubjectDeploysStarted, event)
+}
+
+func (p *natsPublisher) PublishDeployFinished(ctx context.Context, event model.DeployFinishedEvent) error {
+	return p.publish(ctx, nats.SubjectDeploysFinished, event)
+}
+
+func (p *natsPublisher) PublishJobsNotify(ctx context.Context, event model.JobNotifyEvent) error {
 	return p.publish(ctx, nats.JobNotifySubject(event.JobID), event)
 }
 
-func (p *natsPublisher) PublishJobLogLine(ctx context.Context, logLine model.JobLogLine) error {
+func (p *natsPublisher) PublishJobsLogLine(ctx context.Context, logLine model.JobLogLine) error {
 	return p.publish(ctx, nats.JobLogSubject(logLine.JobID), logLine)
 }
 

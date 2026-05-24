@@ -31,26 +31,46 @@ CREATE TABLE projects (
     -- зашифрованный секрет для валидации подписи входящих вебхуков
     webhook_secret  BYTEA,
     -- дата создания записи
-    created_at      TIMESTAMP DEFAULT NOW()
+    created_at      TIMESTAMP DEFAULT NOW(),
+    -- хост целевого сервера для деплоя
+    ssh_host        TEXT NOT NULL DEFAULT '',
+    -- SSH-порт целевого сервера
+    ssh_port        INT NOT NULL DEFAULT 22,
+    -- имя пользователя для SSH-подключения
+    ssh_user        TEXT NOT NULL DEFAULT '',
+    -- зашифрованный SSH-ключ (PEM) для аутентификации на сервере
+    ssh_key         BYTEA,
+    -- команда, которую deployer выполнит после загрузки артефакта
+    deploy_restart_cmd TEXT NOT NULL DEFAULT '',
+    -- рабочая директория на целевом сервере, куда загружается артефакт
+    deploy_workdir  TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE jobs (
     -- уникальный ID джобы
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- foreign key на id проекта, удаление проекта означает удаление всех его джоб
-    project_id  UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id          UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     -- текущий статус джобы: pending, running, success, failed
-    status      TEXT NOT NULL DEFAULT 'pending',
+    status              TEXT NOT NULL DEFAULT 'pending',
     -- SHA коммита который триггернул джобу
-    commit_sha  TEXT NOT NULL,
+    commit_sha          TEXT NOT NULL,
     -- сообщение коммита
-    commit_msg  TEXT NOT NULL,
-    -- ссылка на лог в S3, NULL пока воркер не завершил сборку
-    log_url     TEXT,
+    commit_msg          TEXT NOT NULL,
     -- дата создания записи
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
-    -- дата завершения джобы, NULL пока джоба не завершена
-    finished_at TIMESTAMP
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    -- ссылка на лог сборки в S3, NULL пока воркер не завершил сборку
+    build_log_url       TEXT,
+    -- дата начала фазы сборки, NULL пока воркер не взял задачу
+    build_started_at    TIMESTAMP,
+    -- дата завершения фазы сборки, NULL пока сборка не завершена
+    build_finished_at   TIMESTAMP,
+    -- ссылка на лог деплоя в S3, NULL пока deployer не завершил деплой
+    deploy_log_url      TEXT,
+    -- дата начала фазы деплоя, NULL пока deployer не взял задачу
+    deploy_started_at   TIMESTAMP,
+    -- дата завершения фазы деплоя, NULL пока деплой не завершён
+    deploy_finished_at  TIMESTAMP
 );
 
 -- +goose StatementEnd

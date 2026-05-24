@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	DurableCoordinatorBuilds = "coordinator-builds"
-	DurableCoordinatorJobs   = "coordinator-jobs"
-	DurableWorkers           = "workers"
+	DurableCoordinatorBuilds  = "coordinator-builds"
+	DurableCoordinatorJobs    = "coordinator-jobs"
+	DurableCoordinatorDeploys = "coordinator-deploys"
+	DurableBuilders  = "builders"
+	DurableDeployers = "deployers"
 
 	FetchTimeout       = 2 * time.Second
 	MaxDeliverAttempts = 5

@@ -26,8 +26,9 @@ func NewProjectPostgresRepo(pool *pgxpool.Pool) *projectPostgresRepo {
 // Create создает запись о проекте.
 func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project) error {
 	query := `
-		INSERT INTO projects (user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret)
-		VALUES ($1, $2, $3, $4, $5, $6);
+		INSERT INTO projects (user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret,
+		                      ssh_host, ssh_port, ssh_user, ssh_key, deploy_restart_cmd, deploy_workdir)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
 	`
 
 	_, err := p.pool.Exec(
@@ -39,6 +40,12 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 		project.CloneURL,
 		project.WebhookID,
 		project.WebhookSecret,
+		project.SSHHost,
+		project.SSHPort,
+		project.SSHUser,
+		project.SSHKey,
+		project.DeployRestartCmd,
+		project.DeployWorkdir,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -56,7 +63,8 @@ func (p *projectPostgresRepo) Create(ctx context.Context, project *model.Project
 // GetByID возвращает запись о проекте по его идентификатору.
 func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Project, error) {
 	query := `
-		SELECT id, user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret, created_at
+		SELECT id, user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret, created_at,
+		       ssh_host, ssh_port, ssh_user, ssh_key, deploy_restart_cmd, deploy_workdir
 		FROM projects
 		WHERE id = $1;
 	`
@@ -76,6 +84,12 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 		&project.WebhookID,
 		&project.WebhookSecret,
 		&project.CreatedAt,
+		&project.SSHHost,
+		&project.SSHPort,
+		&project.SSHUser,
+		&project.SSHKey,
+		&project.DeployRestartCmd,
+		&project.DeployWorkdir,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -23,7 +23,7 @@ func NewUserPostgresRepo(pool *pgxpool.Pool) *userPostgresRepo {
 
 // Upsert создает запись о пользователе.
 //
-// Если запись о пользователе с таким же github_id уже существует - обновляет информацию.
+// Если запись о пользователе с таким же github_id уже существует, обновляет информацию.
 func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (uuid.UUID, error) {
 	query := `
 		INSERT INTO users (github_id, avatar_url, github_token)

@@ -11,46 +11,57 @@ import (
 )
 
 const (
-	StreamBuilds        = "BUILDS"
 	StreamJobs          = "JOBS"
+	StreamBuilds        = "BUILDS"
+	StreamDeploys       = "DEPLOYS"
 	StreamNotifications = "NOTIFICATIONS"
 	StreamLogs          = "LOGS"
 
-	SubjectBuildTriggered = "builds.triggered"
-	SubjectJobDispatch    = "jobs.dispatch"
-	SubjectJobStarted     = "jobs.started"
-	SubjectJobFinished    = "jobs.finished"
-	SubjectJobNotify      = "jobs.notify.*" // job.notify.{job_id}
-	SubjectJobLogs        = "jobs.logs.*"   // jobs.logs.{job_id}
+	SubjectJobTriggered    = "jobs.triggered"
+	SubjectBuildsDispatch  = "builds.dispatch"
+	SubjectBuildsStarted   = "builds.started"
+	SubjectBuildsFinished  = "builds.finished"
+	SubjectDeploysDispatch = "deploys.dispatch"
+	SubjectDeploysStarted  = "deploys.started"
+	SubjectDeploysFinished = "deploys.finished"
+	SubjectJobsNotify      = "jobs.notify.*" // job.notify.{job_id}
+	SubjectJobsLogs        = "jobs.logs.*"   // jobs.logs.{job_id}
 )
 
 // SetupStreams инициализирует streams (topics) в NATS.
 func SetupStreams(ctx context.Context, js jetstream.JetStream) error {
 	streams := []jetstream.StreamConfig{
 		{
-			Name:      StreamBuilds,
-			Subjects:  []string{SubjectBuildTriggered},
+			Name:      StreamJobs,
+			Subjects:  []string{SubjectJobTriggered},
 			Retention: jetstream.WorkQueuePolicy,
 			Storage:   jetstream.FileStorage,
 			MaxAge:    24 * time.Hour,
 		},
 		{
-			Name:      StreamJobs,
-			Subjects:  []string{SubjectJobDispatch, SubjectJobStarted, SubjectJobFinished},
+			Name:      StreamBuilds,
+			Subjects:  []string{SubjectBuildsDispatch, SubjectBuildsStarted, SubjectBuildsFinished},
+			Retention: jetstream.WorkQueuePolicy,
+			Storage:   jetstream.FileStorage,
+			MaxAge:    24 * time.Hour,
+		},
+		{
+			Name:      StreamDeploys,
+			Subjects:  []string{SubjectDeploysDispatch, SubjectDeploysStarted, SubjectDeploysFinished},
 			Retention: jetstream.WorkQueuePolicy,
 			Storage:   jetstream.FileStorage,
 			MaxAge:    24 * time.Hour,
 		},
 		{
 			Name:      StreamNotifications,
-			Subjects:  []string{SubjectJobNotify},
+			Subjects:  []string{SubjectJobsNotify},
 			Retention: jetstream.InterestPolicy,
 			Storage:   jetstream.MemoryStorage,
 			MaxAge:    5 * time.Minute,
 		},
 		{
 			Name:              StreamLogs,
-			Subjects:          []string{SubjectJobLogs},
+			Subjects:          []string{SubjectJobsLogs},
 			Retention:         jetstream.LimitsPolicy,
 			Storage:           jetstream.MemoryStorage,
 			MaxAge:            2 * time.Hour,
@@ -68,9 +79,9 @@ func SetupStreams(ctx context.Context, js jetstream.JetStream) error {
 }
 
 func JobNotifySubject(jobID uuid.UUID) string {
-	return strings.Replace(SubjectJobNotify, "*", jobID.String(), 1)
+	return strings.Replace(SubjectJobsNotify, "*", jobID.String(), 1)
 }
 
 func JobLogSubject(jobID uuid.UUID) string {
-	return strings.Replace(SubjectJobLogs, "*", jobID.String(), 1)
+	return strings.Replace(SubjectJobsLogs, "*", jobID.String(), 1)
 }

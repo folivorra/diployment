@@ -41,8 +41,9 @@ func main() {
 	}
 
 	jobRepo := postgres.NewJobPostgresRepo(pool)
+	projectRepo := postgres.NewProjectPostgresRepo(pool)
 	publisher := publishernats.NewNatsPublisher(js)
-	svc := coordinator.NewCoordService(jobRepo, publisher, publisher)
+	svc := coordinator.NewCoordService(jobRepo, projectRepo, publisher, publisher, publisher)
 	consumer := consumernats.NewNatsCoordinatorConsumer(js, svc)
 
 	log.Info("starting coordinator")
@@ -50,14 +51,20 @@ func main() {
 	go svc.RunStaleJobsWatchdog(ctx, cfg.Watchdog.Interval, cfg.Watchdog.StaleAfter)
 
 	go func() {
-		if err := consumer.StartConsumeBuilds(ctx); err != nil {
-			slog.Error("builds consumer stopped", slog.Any("error", err))
+		if err := consumer.StartConsumeJobsTriggered(ctx); err != nil {
+			slog.Error("jobs triggered consumer stopped", slog.Any("error", err))
 		}
 	}()
 
 	go func() {
-		if err := consumer.StartConsumeJobsStatus(ctx); err != nil {
-			slog.Error("jobs consumer stopped", slog.Any("error", err))
+		if err := consumer.StartConsumeBuildsStatus(ctx); err != nil {
+			slog.Error("builds status consumer stopped", slog.Any("error", err))
+		}
+	}()
+
+	go func() {
+		if err := consumer.StartConsumeDeploysStatus(ctx); err != nil {
+			slog.Error("deploys status consumer stopped", slog.Any("error", err))
 		}
 	}()
 

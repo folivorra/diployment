@@ -10,9 +10,11 @@ import (
 
 var (
 	// GitHubToken AAD для шифрования OAuth access token пользователя
-	GitHubToken   = []byte("GITHUB-TOKEN")
+	GitHubToken = []byte("GITHUB-TOKEN")
 	// WebhookSecret AAD для шифрования HMAC-секрета вебхука
-	WebhookSecret = []byte("WEBHOOK-SECRET") 
+	WebhookSecret = []byte("WEBHOOK-SECRET")
+	// DeploySSHKey AAD для шифрования SSH-ключа
+	DeploySSHKey = []byte("DEPLOY-SSH-KEY")
 )
 
 func Encrypt(plainText string, key []byte, userData []byte) ([]byte, error) {
@@ -28,7 +30,7 @@ func Encrypt(plainText string, key []byte, userData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("init aes-gcm cipher: %w", err)
 	}
 
-	// генерация nonce - уникального числа для каждой записи - нужно для уникальности шифра
+	// генерация nonce: уникальное число для каждой записи, нужно для уникальности шифра
 	nonce := make([]byte, aesGCM.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, fmt.Errorf("generate rand for nonce: %w", err)
@@ -62,7 +64,7 @@ func Decrypt(encryptedData []byte, key []byte, userData []byte) ([]byte, error) 
 	}
 
 	// разделяем слайс
-	// первые 12 байт это nonce, всё остальное - cipherText + tag
+	// первые 12 байт это nonce, всё остальное: cipherText + tag
 	nonce, cipherText := encryptedData[:nonceSize], encryptedData[nonceSize:]
 
 	// расшифровка и проверка

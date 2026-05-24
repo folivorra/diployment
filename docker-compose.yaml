@@ -65,16 +65,32 @@ services:
     networks:
       - backend
 
-  worker: # выполняет сборку: клонирует репо, собирает docker образ, сохраняет артефакт в MinIO
+  builder: # выполняет сборку: клонирует репо, собирает docker образ, сохраняет артефакт в MinIO
     build:
       context: .
       args:
-        SERVICE: worker
-    container_name: worker
+        SERVICE: builder
+    container_name: builder
     env_file:
-      - config/.worker.env
+      - config/.builder.env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # доступ к docker daemon хоста для сборки образов
+    depends_on:
+      nats:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    networks:
+      - backend
+
+  deployer: # выполняет деплой: забирает артефакт из MinIO, заливает на сервер по SSH и запускает restart-команду
+    build:
+      context: .
+      args:
+        SERVICE: deployer
+    container_name: deployer
+    env_file:
+      - config/.deployer.env
     depends_on:
       nats:
         condition: service_healthy
@@ -155,3 +171,4 @@ volumes:
   nats_data:
   postgres_data:
   minio_data:
+
