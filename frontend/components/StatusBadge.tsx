@@ -1,10 +1,11 @@
 import type { JobStatus } from '@/lib/types'
 
 const styles: Record<JobStatus, string> = {
-  pending: 'bg-zinc-700 text-zinc-300',
-  running: 'bg-blue-900 text-blue-300',
-  success: 'bg-green-900 text-green-300',
-  failed:  'bg-red-900 text-red-300',
+  pending:   'bg-zinc-700 text-zinc-300',
+  building:  'bg-blue-900 text-blue-300',
+  deploying: 'bg-purple-900 text-purple-300',
+  success:   'bg-green-900 text-green-300',
+  failed:    'bg-red-900 text-red-300',
 }
 
 export default function StatusBadge({ status }: { status: JobStatus }) {

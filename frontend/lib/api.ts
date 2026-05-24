@@ -23,3 +23,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!res.headers.get('Content-Type')?.includes('application/json')) return undefined as T
   return res.json() as Promise<T>
 }
+
+export async function checkHealth(): Promise<boolean> {
+  try {
+    await apiFetch<void>('/health')
+    return true
+  } catch {
+    return false
+  }
+}

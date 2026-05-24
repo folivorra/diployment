@@ -1,4 +1,5 @@
-export type JobStatus = 'pending' | 'running' | 'success' | 'failed'
+export type JobStatus = 'pending' | 'building' | 'deploying' | 'success' | 'failed'
+export type Phase = 'build' | 'deploy'
 
 export interface User {
   id: string
@@ -22,6 +23,11 @@ export interface Project {
   clone_url: string
   webhook_id: number
   created_at: string
+  ssh_host: string
+  ssh_port: number
+  ssh_user: string
+  deploy_restart_cmd: string
+  deploy_workdir: string
 }
 
 export interface Job {
@@ -29,7 +35,11 @@ export interface Job {
   status: JobStatus
   commit_sha: string
   commit_msg: string
-  log_url?: string
   created_at: string
-  finished_at?: string
+  build_log_url?: string
+  build_started_at?: string
+  build_finished_at?: string
+  deploy_log_url?: string
+  deploy_started_at?: string
+  deploy_finished_at?: string
 }

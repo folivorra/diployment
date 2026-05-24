@@ -16,6 +16,14 @@ export default function NewProjectPage() {
   const [branch, setBranch] = useState('')
   const [importing, setImporting] = useState(false)
 
+  // SSH / deploy fields
+  const [sshHost, setSshHost] = useState('')
+  const [sshPort, setSshPort] = useState('22')
+  const [sshUser, setSshUser] = useState('')
+  const [sshKey, setSshKey] = useState('')
+  const [deployRestartCmd, setDeployRestartCmd] = useState('')
+  const [deployWorkdir, setDeployWorkdir] = useState('')
+
   useEffect(() => {
     apiFetch<Repo[]>('/api/repos')
       .then((r) => setRepos(r ?? []))
@@ -54,6 +62,12 @@ export default function NewProjectPage() {
           repo_full_name: selected.full_name,
           clone_url: selected.clone_url,
           branch,
+          ssh_host: sshHost,
+          ssh_port: parseInt(sshPort, 10),
+          ssh_user: sshUser,
+          ssh_key: btoa(sshKey),
+          deploy_restart_cmd: deployRestartCmd,
+          deploy_workdir: deployWorkdir,
         }),
       })
       router.push('/dashboard')
@@ -68,6 +82,17 @@ export default function NewProjectPage() {
       setImporting(false)
     }
   }
+
+  const importDisabled =
+    importing ||
+    branchLoading ||
+    !branch ||
+    !sshHost ||
+    !sshPort ||
+    !sshUser ||
+    !sshKey ||
+    !deployRestartCmd ||
+    !deployWorkdir
 
   if (loading) {
     return (
@@ -112,8 +137,10 @@ export default function NewProjectPage() {
                 {isSelected && (
                   <div className="border-t border-zinc-800 bg-zinc-950 px-5 py-4">
                     <div className="flex flex-col gap-4">
+
+                      {/* Branch selection */}
                       <div className="flex items-center gap-3">
-                        <label className="w-20 text-sm text-zinc-400">Branch</label>
+                        <label className="w-28 shrink-0 text-sm text-zinc-400">Branch</label>
                         {branchLoading ? (
                           <span className="text-sm text-zinc-500">Loading branches…</span>
                         ) : branches.length === 0 ? (
@@ -133,10 +160,92 @@ export default function NewProjectPage() {
                         )}
                       </div>
 
+                      {/* SSH / Deploy section */}
+                      <div className="flex flex-col gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
+                        <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                          SSH &amp; Deploy
+                        </p>
+
+                        {/* SSH host + port on one row */}
+                        <div className="flex gap-3">
+                          <div className="flex flex-1 items-center gap-3">
+                            <label className="w-28 shrink-0 text-sm text-zinc-400">Host</label>
+                            <input
+                              type="text"
+                              value={sshHost}
+                              onChange={(e) => setSshHost(e.target.value)}
+                              placeholder="example.com"
+                              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500"
+                            />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <label className="w-10 shrink-0 text-sm text-zinc-400">Port</label>
+                            <input
+                              type="number"
+                              value={sshPort}
+                              onChange={(e) => setSshPort(e.target.value)}
+                              placeholder="22"
+                              className="w-20 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* SSH user */}
+                        <div className="flex items-center gap-3">
+                          <label className="w-28 shrink-0 text-sm text-zinc-400">User</label>
+                          <input
+                            type="text"
+                            value={sshUser}
+                            onChange={(e) => setSshUser(e.target.value)}
+                            placeholder="deploy"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500"
+                          />
+                        </div>
+
+                        {/* Deploy workdir */}
+                        <div className="flex items-center gap-3">
+                          <label className="w-28 shrink-0 text-sm text-zinc-400">Workdir</label>
+                          <input
+                            type="text"
+                            value={deployWorkdir}
+                            onChange={(e) => setDeployWorkdir(e.target.value)}
+                            placeholder="/srv/myapp"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500"
+                          />
+                        </div>
+
+                        {/* Restart command */}
+                        <div className="flex items-center gap-3">
+                          <label className="w-28 shrink-0 text-sm text-zinc-400">Restart cmd</label>
+                          <input
+                            type="text"
+                            value={deployRestartCmd}
+                            onChange={(e) => setDeployRestartCmd(e.target.value)}
+                            placeholder="systemctl restart myapp"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500"
+                          />
+                        </div>
+
+                        {/* SSH private key */}
+                        <div className="flex gap-3">
+                          <label className="w-28 shrink-0 pt-1.5 text-sm text-zinc-400">
+                            Private key
+                          </label>
+                          <textarea
+                            value={sshKey}
+                            onChange={(e) => setSshKey(e.target.value)}
+                            rows={6}
+                            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----..."
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-mono text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500 resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Import button */}
                       <div className="flex justify-end">
                         <button
                           onClick={handleImport}
-                          disabled={importing || branchLoading || !branch}
+                          disabled={importDisabled}
                           className="rounded-lg bg-zinc-100 px-5 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-300 disabled:opacity-50"
                         >
                           {importing ? 'Importing…' : 'Import'}

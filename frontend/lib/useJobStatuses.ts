@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getApiUrl } from '@/lib/api'
-import type { Job, JobStatus } from '@/lib/types'
+import type { Job, JobStatus, Phase } from '@/lib/types'
 
 const TERMINAL = new Set<JobStatus>(['success', 'failed'])
 
@@ -21,7 +21,7 @@ export function useJobStatuses(jobs: Job[]): Map<string, JobStatus> {
       })
 
       es.addEventListener('status', (e: MessageEvent) => {
-        const { status } = JSON.parse(e.data) as { status: JobStatus; error: string }
+        const { status } = JSON.parse(e.data) as { status: JobStatus; phase: Phase; error?: string }
         setStatuses((prev) => new Map(prev).set(job.id, status))
         if (TERMINAL.has(status)) es.close()
       })
