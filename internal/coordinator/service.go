@@ -207,16 +207,23 @@ func (c *coordinatorService) HandleBuildFinished(ctx context.Context, event mode
 		finalBuildStatus = model.StatusFailed
 	}
 
-	if err := c.repo.UpdateBuildFinished(ctx, event.JobID, finalBuildStatus, logURL, time.Now()); err != nil {
+	now := time.Now()
+	if err := c.repo.UpdateBuildFinished(ctx, event.JobID, finalBuildStatus, logURL, now); err != nil {
 		return err
 	}
 
 	if dispatchErr != nil {
+		if err := c.repo.UpdateDeployStarted(ctx, event.JobID, now); err != nil {
+			slog.Error("mark deploy started after dispatch failure",
+				slog.String("job_id", event.JobID.String()),
+				slog.Any("error", err),
+			)
+		}
 		if err := retry.WithRetry(ctx, retry.DefaultAttempts, retry.DefaultWait, func() error {
 			return c.jn.PublishJobsNotify(ctx, model.JobNotifyEvent{
 				JobID:  event.JobID,
 				Status: model.StatusFailed,
-				Phase:  model.PhaseBuild,
+				Phase:  model.PhaseDeploy,
 				Error:  "failed to dispatch deploy",
 			})
 		}); err != nil {
