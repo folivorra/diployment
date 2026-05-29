@@ -31,6 +31,7 @@ type githubBranch struct {
 
 type githubUser struct {
 	ID        int    `json:"id"`
+	Login     string `json:"login"`
 	AvatarURL string `json:"avatar_url"`
 }
 
@@ -80,6 +81,7 @@ func (g *gitHubProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (
 
 	return &model.User{
 		GithubID:  ghUser.ID,
+		Login:     ghUser.Login,
 		AvatarURL: ghUser.AvatarURL,
 	}, nil
 }

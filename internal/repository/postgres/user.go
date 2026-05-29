@@ -22,14 +22,14 @@ func NewUserPostgresRepo(pool *pgxpool.Pool) *userPostgresRepo {
 }
 
 // Upsert создает запись о пользователе.
-//
 // Если запись о пользователе с таким же github_id уже существует, обновляет информацию.
 func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (uuid.UUID, error) {
 	query := `
-		INSERT INTO users (github_id, avatar_url, github_token)
-		VALUES ($1, $2, $3)
+		INSERT INTO users (github_id, github_login, avatar_url, github_token)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (github_id)
 		DO UPDATE SET
+			github_login = EXCLUDED.github_login,
 			avatar_url = EXCLUDED.avatar_url,
 			github_token = EXCLUDED.github_token
 		RETURNING id;
@@ -40,6 +40,7 @@ func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (uuid.U
 		ctx,
 		query,
 		user.GithubID,
+		user.Login,
 		user.AvatarURL,
 		user.EncryptedToken,
 	).Scan(&id)
@@ -53,7 +54,7 @@ func (u *userPostgresRepo) Upsert(ctx context.Context, user *model.User) (uuid.U
 // GetByID возвращает запись о пользователе по его идентификатору.
 func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	query := `
-		SELECT id, github_id, avatar_url, github_token, created_at
+		SELECT id, github_id, github_login, avatar_url, github_token, created_at
 		FROM users
 		WHERE id = $1;
 	`
@@ -67,6 +68,7 @@ func (u *userPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Us
 	).Scan(
 		&user.ID,
 		&user.GithubID,
+		&user.Login,
 		&user.AvatarURL,
 		&user.EncryptedToken,
 		&user.CreatedAt,

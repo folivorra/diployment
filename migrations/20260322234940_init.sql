@@ -7,6 +7,8 @@ CREATE TABLE users (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- github ID для дедупликации пользователей
     github_id       BIGINT UNIQUE NOT NULL,
+    -- github login (никнейм), используется в UI вместо id
+    github_login    TEXT NOT NULL DEFAULT '',
     -- ссылка на аватар пользователя из github, красиво для UI
     avatar_url      TEXT,
     -- зашифрованный access_token от GitHub

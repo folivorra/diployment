@@ -9,6 +9,7 @@ import (
 type User struct {
 	ID        uuid.UUID `json:"id"`
 	GithubID  int       `json:"github_id"`
+	Login     string    `json:"login"`
 	AvatarURL string    `json:"avatar_url"`
 	CreatedAt time.Time `json:"created_at"`
 
