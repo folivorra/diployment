@@ -5,6 +5,7 @@ export interface User {
   id: string
   github_id: number
   avatar_url: string
+  login?: string
   created_at: string
 }
 
