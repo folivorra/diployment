@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/folivorra/diployment/internal/model"
+	miniorepo "github.com/folivorra/diployment/internal/repository/minio"
 	"github.com/folivorra/diployment/pkg/crypto/aesgcm"
 	"github.com/folivorra/diployment/pkg/retry"
 
@@ -26,9 +27,6 @@ import (
 )
 
 const (
-	BucketArtifacts = "artifacts"
-	BucketLogs      = "logs"
-
 	ContentTypeXTar      = "application/x-tar"
 	ContentTypeTextPlain = "text/plain"
 
@@ -169,7 +167,7 @@ func (b *builder) Build(ctx context.Context, event model.BuildDispatchEvent) (st
 		}
 		defer func() { _ = imageReader.Close() }()
 
-		_, err = b.s3.PutObject(ctx, BucketArtifacts, event.JobID.String()+".tar", imageReader, UnknownSize,
+		_, err = b.s3.PutObject(ctx, miniorepo.BucketArtifacts, event.JobID.String()+".tar", imageReader, UnknownSize,
 			minio.PutObjectOptions{ContentType: ContentTypeXTar},
 		)
 		return err
@@ -185,7 +183,7 @@ func (b *builder) Build(ctx context.Context, event model.BuildDispatchEvent) (st
 			return fmt.Errorf("seek log file: %w", err)
 		}
 		fi, _ := logFile.Stat()
-		_, err = b.s3.PutObject(ctx, BucketLogs, logKey, logFile, fi.Size(),
+		_, err = b.s3.PutObject(ctx, miniorepo.BucketLogs, logKey, logFile, fi.Size(),
 			minio.PutObjectOptions{ContentType: ContentTypeTextPlain},
 		)
 		return err

@@ -29,7 +29,7 @@ func NewSubscriberNats(js jetstream.JetStream) *subscriberNats {
 func (s *subscriberNats) SubscribeNotifications(ctx context.Context, jobID uuid.UUID) (<-chan model.JobNotifyEvent, func(), error) {
 	return subscribe[model.JobNotifyEvent](ctx, s.js, nats.StreamNotifications, jetstream.ConsumerConfig{
 		FilterSubject: nats.JobNotifySubject(jobID),
-		DeliverPolicy: jetstream.DeliverNewPolicy,
+		DeliverPolicy: jetstream.DeliverNewPolicy, // получаем только обновления текущего статуса
 		AckPolicy:     jetstream.AckNonePolicy,
 	})
 }
@@ -37,12 +37,21 @@ func (s *subscriberNats) SubscribeNotifications(ctx context.Context, jobID uuid.
 func (s *subscriberNats) SubscribeLogs(ctx context.Context, jobID uuid.UUID) (<-chan model.JobLogLine, func(), error) {
 	return subscribe[model.JobLogLine](ctx, s.js, nats.StreamLogs, jetstream.ConsumerConfig{
 		FilterSubject: nats.JobLogSubject(jobID),
-		DeliverPolicy: jetstream.DeliverAllPolicy,
+		DeliverPolicy: jetstream.DeliverAllPolicy, // чтобы все логи которые скопились отобразились на фронте
 		AckPolicy:     jetstream.AckNonePolicy,
 	})
 }
 
-func subscribe[T any](ctx context.Context, js jetstream.JetStream, stream string, cfg jetstream.ConsumerConfig) (<-chan T, func(), error) {
+func subscribe[T any](
+	ctx context.Context,
+	js jetstream.JetStream,
+	stream string,
+	cfg jetstream.ConsumerConfig,
+) (
+	<-chan T,
+	func(),
+	error,
+) {
 	cons, err := js.CreateOrUpdateConsumer(ctx, stream, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create consumer: %w", err)

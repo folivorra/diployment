@@ -23,6 +23,7 @@ type CoreConfig struct {
 	GitHub   GitHubConfig
 	Webhook  WebhookServiceConfig
 	NATS     NATSConfig
+	MinIO    MinIOConfig
 }
 
 type WebhookConfig struct {

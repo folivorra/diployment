@@ -15,9 +15,11 @@ import (
 	authmddlwr "github.com/folivorra/diployment/internal/core/handler/middleware"
 	"github.com/folivorra/diployment/internal/core/provider"
 	"github.com/folivorra/diployment/internal/core/service"
+	minioclient "github.com/folivorra/diployment/internal/minio"
 	natsconn "github.com/folivorra/diployment/internal/nats"
 	"github.com/folivorra/diployment/internal/pgpool"
 	"github.com/folivorra/diployment/internal/repository/postgres"
+	miniorepo "github.com/folivorra/diployment/internal/repository/minio"
 	subscribernats "github.com/folivorra/diployment/internal/subscriber/nats"
 	"github.com/folivorra/diployment/pkg/logger"
 
@@ -51,16 +53,22 @@ func main() {
 		flog.Fatalf("cannot setup streams: %v", err)
 	}
 
+	minioClient, err := minioclient.NewMinioClient(cfg.MinIO)
+	if err != nil {
+		flog.Fatalf("cannot create minio client: %v", err)
+	}
+
 	userRepo := postgres.NewUserPostgresRepo(pool)
 	projectRepo := postgres.NewProjectPostgresRepo(pool)
 	jobRepo := postgres.NewJobPostgresRepo(pool)
+	logRepo := miniorepo.NewLogMinioRepo(minioClient, miniorepo.BucketLogs)
 	githubProvider := provider.NewGitHubProvider(cfg.GitHub, cfg.Webhook.URL)
 	repoService := service.NewRepoService(githubProvider, userRepo, cfg.MasterKey)
 	authService := service.NewAuthService(githubProvider, userRepo, cfg.Auth, cfg.MasterKey)
 	userService := service.NewUserService(userRepo)
 	projectService := service.NewProjectService(projectRepo, projectRepo, githubProvider, userRepo, cfg.MasterKey)
 	jobSubscriber := subscribernats.NewSubscriberNats(js)
-	jobService := service.NewJobService(jobRepo)
+	jobService := service.NewJobService(jobRepo, logRepo)
 	repoHandler := handler.NewRepoHandler(repoService)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -94,8 +102,9 @@ func main() {
 		api.GET("/repos/branches", repoHandler.ListBranches)    // список веток репозитория на GitHub
 		api.GET("/projects", projectHandler.List)               // список проектов пользователя
 		api.POST("/projects/import", projectHandler.Import)     // импортировать репозиторий как проект
-		api.GET("/projects/:id/jobs", jobHandler.ListByProject) // история джоб проекта
-		api.GET("/jobs/:id/events", jobHandler.Events)          // SSE стрим статусов джобы
+		api.GET("/projects/:id/jobs", jobHandler.ListByProject)    // история джоб проекта
+		api.GET("/jobs/:id/events", jobHandler.Events)             // SSE стрим статусов джобы
+		api.GET("/jobs/:id/logs/:phase", jobHandler.GetLog)        // персистентный лог из MinIO
 	}
 
 	go func() {

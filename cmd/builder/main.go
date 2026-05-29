@@ -13,6 +13,7 @@ import (
 	"github.com/folivorra/diployment/internal/minio"
 	natsconn "github.com/folivorra/diployment/internal/nats"
 	publishernats "github.com/folivorra/diployment/internal/publisher/nats"
+	miniorepo "github.com/folivorra/diployment/internal/repository/minio"
 	"github.com/folivorra/diployment/pkg/logger"
 
 	"github.com/google/uuid"
@@ -41,10 +42,10 @@ func main() {
 	if err != nil {
 		flog.Fatalf("cannot create minio client: %v", err)
 	}
-	if err := minio.InitBucket(ctx, minioClient, builder.BucketArtifacts); err != nil {
+	if err := minio.InitBucket(ctx, minioClient, miniorepo.BucketArtifacts); err != nil {
 		flog.Fatalf("cannot init minio bucket: %v", err)
 	}
-	if err := minio.InitBucket(ctx, minioClient, builder.BucketLogs); err != nil {
+	if err := minio.InitBucket(ctx, minioClient, miniorepo.BucketLogs); err != nil {
 		flog.Fatalf("cannot init minio logs bucket: %v", err)
 	}
 

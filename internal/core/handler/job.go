@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 type JobService interface {
 	ListByProject(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]*model.Job, error)
 	GetByID(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*model.Job, error)
+	GetLog(ctx context.Context, userID uuid.UUID, jobID uuid.UUID, phase model.Phase) (io.ReadCloser, error)
 }
 
 type JobNotificationsSubscriber interface {
@@ -125,7 +127,7 @@ func (h *jobHandler) Events(c echo.Context) error {
 		}
 	}
 
-	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Content-Type", "text/event-stream") // стримим события (логи и обновление статуса)
 	c.Response().Header().Set("Cache-Control", "no-cache")
 	c.Response().Header().Set("Connection", "keep-alive")
 	c.Response().WriteHeader(http.StatusOK)
@@ -139,7 +141,6 @@ func (h *jobHandler) Events(c echo.Context) error {
 		_, _ = fmt.Fprintf(c.Response(), StatusFormat, data)
 		c.Response().Flush()
 	}
-
 	writeLog := func(line string, phase model.Phase) {
 		data, _ := json.Marshal(struct {
 			Line  string      `json:"line"`
@@ -149,8 +150,8 @@ func (h *jobHandler) Events(c echo.Context) error {
 		c.Response().Flush()
 	}
 
-	// Определяем текущую фазу по полям джобы из БД.
-	// Нужно чтобы отправить правильный начальный статус клиенту.
+	// определяем текущую фазу по полям джобы из БД
+	// нужно чтобы отправить правильный начальный статус клиенту
 	currentPhase := func() model.Phase {
 		if job.DeployStartedAt != nil {
 			return model.PhaseDeploy
@@ -163,9 +164,9 @@ func (h *jobHandler) Events(c echo.Context) error {
 
 	writeStatus(job.Status, currentPhase, "")
 
-	// Если джоба уже завершена — подписываемся только на логи.
-	// NATS отдаст все старые строки из буфера (DeliverAllPolicy),
-	// и мы закроем стрим когда придёт Done нужной фазы.
+	// если джоба уже завершена - подписываемся только на логи
+	// NATS отдаст все старые строки из буфера (DeliverAllPolicy)
+	// и мы закроем стрим когда придёт Done нужной фазы
 	alreadyDone := job.Status == model.StatusSuccess || job.Status == model.StatusFailed
 
 	logCh, stopLogs, err := h.lgs.SubscribeLogs(c.Request().Context(), jobID)
@@ -174,8 +175,7 @@ func (h *jobHandler) Events(c echo.Context) error {
 	}
 	defer stopLogs()
 
-	// nil-канал в select никогда не выбирается — это стандартный Go-приём
-	// чтобы не заводить отдельный bool "подписан ли notifCh"
+	// nil-канал в select никогда не выбирается
 	var notifCh <-chan model.JobNotifyEvent
 	stopNotif := func() {}
 	if !alreadyDone {
@@ -186,8 +186,8 @@ func (h *jobHandler) Events(c echo.Context) error {
 	}
 	defer stopNotif()
 
-	// gotTerminalStatus: знаем что джоба завершена (либо из БД, либо пришло по notifCh)
-	// buildDone/deployDone: пришёл Done-сентинель соответствующей фазы
+	// gotTerminalStatus - знаем что джоба завершена (либо из БД, либо пришло по notifCh)
+	// buildDone/deployDone - пришёл Done-сентинель соответствующей фазы
 	gotTerminalStatus := alreadyDone
 	buildDone := false
 	deployDone := false
@@ -217,8 +217,8 @@ func (h *jobHandler) Events(c echo.Context) error {
 				writeLog(line.Line, line.Phase)
 				continue
 			}
-			// Done-сентинель: ждём финального статуса в обоих случаях,
-			// так как notify может прийти после Done из-за порядка публикации в NATS.
+			// Done-сентинель - ждём финального статуса в обоих случаях,
+			// так как notify может прийти после Done из-за порядка публикации в NATS
 			if line.Phase == model.PhaseDeploy {
 				deployDone = true
 			} else {
@@ -229,4 +229,43 @@ func (h *jobHandler) Events(c echo.Context) error {
 			}
 		}
 	}
+}
+
+// GetLog отдаёт персистентный лог джобы из MinIO в виде text/plain стрима.
+func (h *jobHandler) GetLog(c echo.Context) error {
+	userID, ok := c.Get("user_id").(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user id not found or empty")
+	}
+
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid job id")
+	}
+
+	phase := model.Phase(c.Param("phase"))
+	if !phase.IsValid() {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid phase, must be 'build' or 'deploy'")
+	}
+
+	rc, err := h.svc.GetLog(c.Request().Context(), userID, jobID, phase)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrForbidden):
+			return echo.NewHTTPError(http.StatusForbidden, "access denied")
+		case errors.Is(err, service.ErrLogUnavailable):
+			return echo.NewHTTPError(http.StatusNotFound, "log not available")
+		case errors.Is(err, postgres.ErrJobNotFound):
+			return echo.NewHTTPError(http.StatusNotFound, "job not found")
+		default:
+			return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
+		}
+	}
+	defer rc.Close()
+
+	c.Response().Header().Set(echo.HeaderContentType, "text/plain; charset=utf-8")
+	c.Response().WriteHeader(http.StatusOK)
+	_, _ = io.Copy(c.Response(), rc)
+
+	return nil
 }
