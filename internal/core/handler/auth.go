@@ -19,12 +19,14 @@ type AuthService interface {
 }
 
 type authHandler struct {
-	svc AuthService
+	svc         AuthService
+	frontendURL string
 }
 
-func NewAuthHandler(authSrv AuthService) *authHandler {
+func NewAuthHandler(authSrv AuthService, frontendURL string) *authHandler {
 	return &authHandler{
-		svc: authSrv,
+		svc:         authSrv,
+		frontendURL: frontendURL,
 	}
 }
 
@@ -80,7 +82,7 @@ func (a *authHandler) Callback(c echo.Context) error {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	return c.Redirect(http.StatusTemporaryRedirect, "http://localhost:3000/dashboard") // fixme добавить фронт кфг
+	return c.Redirect(http.StatusTemporaryRedirect, a.frontendURL+"/dashboard")
 }
 
 // generateState возвращает рандомно сгенерированную строку в base64 для использования как state.

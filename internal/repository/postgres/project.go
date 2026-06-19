@@ -104,7 +104,8 @@ func (p *projectPostgresRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 // ListByUserID возвращает список проектов по идентификатору пользователя.
 func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Project, error) {
 	query := `
-		SELECT id, user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret, created_at
+		SELECT id, user_id, repo_full_name, branch, clone_url, webhook_id, webhook_secret, created_at,
+		       ssh_host, ssh_port, ssh_user, ssh_key, deploy_restart_cmd, deploy_workdir
 		FROM projects
 		WHERE user_id = $1;
 	`
@@ -129,6 +130,12 @@ func (p *projectPostgresRepo) ListByUserID(ctx context.Context, userID uuid.UUID
 			&project.WebhookID,
 			&project.WebhookSecret,
 			&project.CreatedAt,
+			&project.SSHHost,
+			&project.SSHPort,
+			&project.SSHUser,
+			&project.SSHKey,
+			&project.DeployRestartCmd,
+			&project.DeployWorkdir,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan project: %w", err)

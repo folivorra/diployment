@@ -22,6 +22,7 @@ type CoreConfig struct {
 	Auth     AuthConfig
 	GitHub   GitHubConfig
 	Webhook  WebhookServiceConfig
+	Frontend FrontendConfig
 	NATS     NATSConfig
 	MinIO    MinIOConfig
 }
@@ -111,6 +112,10 @@ type GitHubConfig struct {
 
 type WebhookServiceConfig struct {
 	URL string `env:"WEBHOOK_URL" env-required:"true"`
+}
+
+type FrontendConfig struct {
+	URL string `env:"FRONTEND_URL" env-required:"true"`
 }
 
 func decodeBase64Key(encoded []byte) ([]byte, error) {

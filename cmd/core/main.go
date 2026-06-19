@@ -70,7 +70,7 @@ func main() {
 	jobSubscriber := subscribernats.NewSubscriberNats(js)
 	jobService := service.NewJobService(jobRepo, logRepo)
 	repoHandler := handler.NewRepoHandler(repoService)
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, cfg.Frontend.URL)
 	userHandler := handler.NewUserHandler(userService)
 	projectHandler := handler.NewProjectHandler(projectService)
 	jobHandler := handler.NewJobHandler(jobService, jobSubscriber, jobSubscriber)
@@ -81,7 +81,7 @@ func main() {
 	e.Use(middleware.Recover()) // чтобы сервер не падал на панике, а писал ошибку в логи
 	e.Use(middleware.CORSWithConfig(
 		middleware.CORSConfig{ // для корректной работы фронт-бэк
-			AllowOrigins:     []string{"http://localhost:3000"},
+			AllowOrigins:     []string{"http://localhost:3000", cfg.Frontend.URL},
 			AllowCredentials: true, // важно для работы с куками!
 		},
 	))
